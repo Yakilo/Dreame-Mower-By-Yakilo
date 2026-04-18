@@ -1188,12 +1188,22 @@ def test_firmware_install_state_handling():
     assert device.firmware_install_state == 3
     assert ("firmware_install_state", 3) in property_changes
     
+    # Test valid value 4 (firmware_download_failed - issues #98, #134)
+    message_value_4 = {
+        'id': 106,
+        'method': 'properties_changed',
+        'params': [{'did': '-1******07', 'piid': 2, 'siid': 1, 'value': 4}]
+    }
+    device._handle_message(message_value_4)
+    assert device.firmware_install_state == 4
+    assert ("firmware_install_state", 4) in property_changes
+    
     # Test invalid value - should be rejected
     property_changes.clear()
     message_invalid = {"siid": 1, "piid": 2, "value": 99}
     result = device._handle_mqtt_property_update(message_invalid)
     assert result is False  # Invalid value should return False
-    assert device.firmware_install_state == 3  # State should remain unchanged
+    assert device.firmware_install_state == 4  # State should remain unchanged
     assert len(property_changes) == 0  # No property change notification for invalid value
 
 

@@ -179,6 +179,15 @@ class TestDeviceMqttPropertyUpdate:
                 "charging_status",
                 lambda v: v == "charging_paused_low_temperature"
             ),
+            (  # Issue #98: 1:2 firmware install state 4 = firmware_download_failed (dreame.mower.p2255 fw 4.3.6_1542)
+                {
+                    "id": 101,
+                    "method": "properties_changed",
+                    "params": [{"did": "-1******07", "piid": 2, "siid": 1, "value": 4}]
+                },
+                "firmware_install_state",
+                lambda v: v == 4
+            ),
         ],
     )
     def test_full_mqtt_messages_parametrized(

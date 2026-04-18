@@ -175,10 +175,7 @@ CHARGING_STATUS_MAPPING: dict[int, str] = {
 FIRMWARE_INSTALL_STATE_MAPPING: dict[int, str] = {
     2: "new_firmware_available",
     3: "installing_firmware_after_download",
-
-    # Note: Value 4 has been observed in issue #134 during a failed firmware download attempt.
-    # Meaning is currently unknown - may indicate "firmware_download_failed" or similar state.
-    # 4: "firmware_download_failed" - See issue #134
+    4: "firmware_download_failed",  # Observed in issues #98, #134
 }
 
 # Individual property names
