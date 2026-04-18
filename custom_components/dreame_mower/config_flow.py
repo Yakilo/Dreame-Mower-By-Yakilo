@@ -389,6 +389,9 @@ class DreameMowerOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         current_notify = self.config_entry.options.get(CONF_NOTIFY)
+        # Filter out any invalid notification types
+        if current_notify:
+            current_notify = [n for n in current_notify if n in NOTIFICATION]
         current_rotation = self.config_entry.options.get(CONF_MAP_ROTATION, 0)
         return self.async_show_form(
             step_id="init",

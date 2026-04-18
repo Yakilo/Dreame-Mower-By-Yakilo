@@ -1,11 +1,17 @@
 """Tests for config_flow utility functions."""
 
 import pytest
+from unittest.mock import Mock, PropertyMock, patch
 from custom_components.dreame_mower.config_flow import (
     _device_type_for_model,
     DEVICE_TYPE_MOWER,
     DEVICE_TYPE_SWBOT,
+    DreameMowerOptionsFlow,
+    NOTIFICATION_INFORMATION,
+    NOTIFICATION_WARNING,
+    NOTIFICATION_ERROR,
 )
+from custom_components.dreame_mower.const import CONF_NOTIFY, CONF_MAP_ROTATION
 
 
 class TestDeviceTypeForModel:
@@ -22,3 +28,39 @@ class TestDeviceTypeForModel:
 
     def test_unknown_model_defaults_to_mower(self):
         assert _device_type_for_model("some.unknown.model") == DEVICE_TYPE_MOWER
+
+
+class TestOptionsFlow:
+    """Test DreameMowerOptionsFlow."""
+
+    @pytest.mark.asyncio
+    async def test_filters_invalid_notification_types(self):
+        """Test that invalid notification types like mqtt_discovery are filtered out."""
+        # Create a mock config entry with old notification settings
+        mock_config_entry = Mock()
+        mock_config_entry.options = {
+            CONF_NOTIFY: [NOTIFICATION_WARNING, NOTIFICATION_ERROR, "mqtt_discovery"],
+            CONF_MAP_ROTATION: 0,
+        }
+        
+        # Create options flow instance and patch config_entry property
+        options_flow = DreameMowerOptionsFlow()
+        with patch.object(
+            type(options_flow), 'config_entry', new_callable=PropertyMock, return_value=mock_config_entry
+        ):
+            # Call async_step_init with no user input to get the form
+            result = await options_flow.async_step_init(user_input=None)
+        
+        # Extract the default value for CONF_NOTIFY from the schema
+        # In voluptuous, Required fields with defaults store the default in the key
+        schema_dict = result["data_schema"].schema
+        for key in schema_dict:
+            if hasattr(key, 'schema') and key.schema == CONF_NOTIFY:
+                default_notify = key.default()
+                break
+        
+        # Verify mqtt_discovery was filtered out
+        assert "mqtt_discovery" not in default_notify
+        assert NOTIFICATION_WARNING in default_notify
+        assert NOTIFICATION_ERROR in default_notify
+        assert len(default_notify) == 2
