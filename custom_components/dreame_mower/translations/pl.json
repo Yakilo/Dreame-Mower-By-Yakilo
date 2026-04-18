@@ -68,14 +68,14 @@
         "name": "Status",
         "state": {
           "no_status": "Brak statusu",
-          "mowing": "Kośba",
-          "standby": "Standby",
+          "mowing": "Koszenie",
+          "standby": "Czuwanie",
           "paused": "Zatrzymany",
           "paused_due_to_errors": "Zatrzymany z powodu błędów",
-          "returning_to_station_to_charge": "Powrót do stacji, aby obciążyć",
+          "returning_to_station_to_charge": "Powrót do stacji w celu ładowania",
           "charging": "Ładowanie",
           "mapping": "Mapowanie",
-          "charging_complete": "Ładowanie kompletne",
+          "charging_complete": "Ładowanie zakończone",
           "updating": "Aktualizacja"
         }
       },
@@ -84,9 +84,9 @@
         "state": {
           "not_docked": "Nie zadokowany",
           "charging": "Ładowanie",
-          "not_charging": "Nie ładować",
+          "not_charging": "Brak ładowania",
           "charging_completed": "Ładowanie zakończone",
-          "return_to_charge": "Powrót do opłaty",
+          "return_to_charge": "Powrót do ładowania",
           "charging_paused_low_temperature": "Ładowanie wstrzymane: temperatura baterii zbyt niska"
         }
       },
