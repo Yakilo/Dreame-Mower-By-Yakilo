@@ -34,7 +34,7 @@ def _encode_pose_bytes(x: int, y: int, angle_deg: float = 0.0) -> list[int]:
 def _encode_task_bytes(
     region_id: int = 0,
     task_id: int = 0,
-    percent_x10: int = 0,
+    percent_x100: int = 0,
     total_centisqm: int = 0,
     finish_centisqm: int = 0,
 ) -> list[int]:
@@ -42,8 +42,8 @@ def _encode_task_bytes(
     return [
         region_id,
         task_id,
-        percent_x10 & 0xFF,
-        (percent_x10 >> 8) & 0xFF,
+        percent_x100 & 0xFF,
+        (percent_x100 >> 8) & 0xFF,
         total_centisqm & 0xFF,
         (total_centisqm >> 8) & 0xFF,
         (total_centisqm >> 16) & 0xFF,
@@ -78,7 +78,7 @@ def _build_full_payload(
     angle: float = 0.0,
     region_id: int = 0,
     task_id: int = 0,
-    percent_x10: int = 0,
+    percent_x100: int = 0,
     total_centisqm: int = 0,
     finish_centisqm: int = 0,
     trace_deltas: list[tuple[int, int]] | None = None,
@@ -86,7 +86,7 @@ def _build_full_payload(
     """Build a full 33-byte sentinel-framed payload."""
     pose = _encode_pose_bytes(x, y, angle)
     trace = _encode_trace_bytes(deltas=trace_deltas, pad_to=15)
-    task = _encode_task_bytes(region_id, task_id, percent_x10, total_centisqm, finish_centisqm)
+    task = _encode_task_bytes(region_id, task_id, percent_x100, total_centisqm, finish_centisqm)
     return [0xCE] + pose + trace + task + [0xCE]
 
 
@@ -195,7 +195,7 @@ class TestParseTask:
         task_bytes = _encode_task_bytes(
             region_id=5,
             task_id=1,
-            percent_x10=960,  # 96.0%
+            percent_x100=9600,  # 96.0%
             total_centisqm=10000,  # 100.00 sqm
             finish_centisqm=9600,  # 96.00 sqm
         )
@@ -241,7 +241,7 @@ class TestFullFormatParsing:
 
     def test_progress_from_task(self, handler):
         payload = _build_full_payload(
-            percent_x10=960,
+            percent_x100=9600,
             total_centisqm=10000,
             finish_centisqm=9600,
         )
@@ -279,7 +279,7 @@ class TestMissionCompletion:
     """Test mission completion flag lifecycle."""
 
     def test_caps_progress_at_100(self, handler):
-        payload = _build_full_payload(percent_x10=960, total_centisqm=10000, finish_centisqm=9600)
+        payload = _build_full_payload(percent_x100=9600, total_centisqm=10000, finish_centisqm=9600)
         handler.parse_value(payload)
         assert handler.progress_percent == 96.0
 
@@ -288,7 +288,7 @@ class TestMissionCompletion:
 
     def test_flag_affects_subsequent_parsing(self, handler):
         handler.mark_mission_completed()
-        payload = _build_full_payload(percent_x10=960, total_centisqm=10000, finish_centisqm=9600)
+        payload = _build_full_payload(percent_x100=9600, total_centisqm=10000, finish_centisqm=9600)
         handler.parse_value(payload)
         assert handler.progress_percent == 100.0
 
@@ -300,12 +300,12 @@ class TestMissionCompletion:
 
     def test_complete_lifecycle(self, handler):
         # 1. Parse 50%
-        p50 = _build_full_payload(percent_x10=500, total_centisqm=10000, finish_centisqm=5000)
+        p50 = _build_full_payload(percent_x100=5000, total_centisqm=10000, finish_centisqm=5000)
         handler.parse_value(p50)
         assert handler.progress_percent == 50.0
 
         # 2. Parse 96%
-        p96 = _build_full_payload(percent_x10=960, total_centisqm=10000, finish_centisqm=9600)
+        p96 = _build_full_payload(percent_x100=9600, total_centisqm=10000, finish_centisqm=9600)
         handler.parse_value(p96)
         assert handler.progress_percent == 96.0
 
@@ -319,12 +319,12 @@ class TestMissionCompletion:
 
         # 5. New mission
         handler.reset_mission_completion()
-        p30 = _build_full_payload(percent_x10=300, total_centisqm=10000, finish_centisqm=3000)
+        p30 = _build_full_payload(percent_x100=3000, total_centisqm=10000, finish_centisqm=3000)
         handler.parse_value(p30)
         assert handler.progress_percent == 30.0
 
     def test_zero_progress_not_capped(self, handler):
-        payload = _build_full_payload(percent_x10=0, total_centisqm=10000, finish_centisqm=0)
+        payload = _build_full_payload(percent_x100=0, total_centisqm=10000, finish_centisqm=0)
         handler.parse_value(payload)
         handler.mark_mission_completed()
         assert handler.progress_percent == 0.0
@@ -351,7 +351,7 @@ class TestShortFormats:
 
     def test_alt_format_task_only(self, handler):
         """11-byte format: task(10) + CE (no leading sentinel)."""
-        task = _encode_task_bytes(percent_x10=500, total_centisqm=10000, finish_centisqm=5000)
+        task = _encode_task_bytes(percent_x100=5000, total_centisqm=10000, finish_centisqm=5000)
         payload = task + [0xCE]
         assert len(payload) == 11
         assert handler.parse_value(payload) is True
@@ -362,7 +362,7 @@ class TestNotificationData:
     """Test notification data accessors."""
 
     def test_progress_notification(self, handler):
-        payload = _build_full_payload(percent_x10=765, total_centisqm=10000, finish_centisqm=7650)
+        payload = _build_full_payload(percent_x100=7650, total_centisqm=10000, finish_centisqm=7650)
         handler.parse_value(payload)
         data = handler.get_progress_notification_data()
         assert data["current_area_sqm"] == 76.5
@@ -379,8 +379,8 @@ class TestNotificationData:
         assert len(data["track_points"]) >= 1
 
     def test_progress_capped_at_100(self, handler):
-        """Percent > 1000 (100%) should be capped to 100."""
-        payload = _build_full_payload(percent_x10=1100, total_centisqm=10000, finish_centisqm=11000)
+        """Percent > 10000 (100%) should be capped to 100."""
+        payload = _build_full_payload(percent_x100=11000, total_centisqm=10000, finish_centisqm=11000)
         handler.parse_value(payload)
         assert handler.progress_percent == 100.0
 

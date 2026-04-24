@@ -144,7 +144,7 @@ def _parse_task(data: List[int], offset: int) -> dict[str, Any]:
     Layout (relative to offset)::
 
         [0] region_id  [1] task_id
-        [2:4] percent (uint16 LE, value * 10)
+        [2:4] percent (uint16 LE, value * 100, range 0–10000)
         [4:7] total area (uint24 LE, centi-sqm)
         [7:10] finished area (uint24 LE, centi-sqm)
     """
@@ -156,7 +156,7 @@ def _parse_task(data: List[int], offset: int) -> dict[str, Any]:
 
     total_sqm = total / 100.0 if total else 0.0
     finish_sqm = finish / 100.0 if finish else 0.0
-    progress = min(100.0, raw_percent / 10.0) if raw_percent else 0.0
+    progress = min(100.0, raw_percent / 100.0) if raw_percent else 0.0
 
     return {
         "region_id": region_id,

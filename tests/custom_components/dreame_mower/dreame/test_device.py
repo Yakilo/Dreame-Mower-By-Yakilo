@@ -1351,7 +1351,7 @@ async def test_mission_completion_caps_progress_at_100_percent(device):
     # Trace: zeros (no deltas)
     # Task at raw[22:32]:
     #   [22]=region_id=0  [23]=task_id=0
-    #   [24:26]=percent uint16 LE=960 (96.0%)  -> 0xC0, 0x03
+    #   [24:26]=percent uint16 LE=9600 (96.0%)  -> 0x80, 0x25
     #   [26:29]=total uint24 LE=10000 (100 sqm) -> 0x10, 0x27, 0x00
     #   [29:32]=finish uint24 LE=9600 (96 sqm)  -> 0x80, 0x25, 0x00
     progress_message = {
@@ -1363,7 +1363,7 @@ async def test_mission_completion_caps_progress_at_100_percent(device):
                 0xCE,
                 0, 0, 0, 0, 0, 0,                     # pose (6 bytes)
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # trace (15 bytes)
-                0, 0, 0xC0, 0x03, 0x10, 0x27, 0x00, 0x80, 0x25, 0x00,  # task (10 bytes)
+                0, 0, 0x80, 0x25, 0x10, 0x27, 0x00, 0x80, 0x25, 0x00,  # task (10 bytes)
                 0xCE
             ]
         }]
@@ -1478,7 +1478,7 @@ async def test_full_mission_lifecycle_workflow(device):
                 0xCE,
                 0, 0, 0, 0, 0, 0,                     # pose
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # trace
-                0, 0, 0xF4, 0x01, 0x10, 0x27, 0x00, 0x88, 0x13, 0x00,  # task: 500=>50%, total=10000, finish=5000
+                0, 0, 0x88, 0x13, 0x10, 0x27, 0x00, 0x88, 0x13, 0x00,  # task: 5000=>50%, total=10000, finish=5000
                 0xCE
             ]
         }]
@@ -1494,7 +1494,7 @@ async def test_full_mission_lifecycle_workflow(device):
                 0xCE,
                 0, 0, 0, 0, 0, 0,                     # pose
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # trace
-                0, 0, 0xC0, 0x03, 0x10, 0x27, 0x00, 0x80, 0x25, 0x00,  # task: 960=>96%, total=10000, finish=9600
+                0, 0, 0x80, 0x25, 0x10, 0x27, 0x00, 0x80, 0x25, 0x00,  # task: 9600=>96%, total=10000, finish=9600
                 0xCE
             ]
         }]
@@ -1546,7 +1546,7 @@ async def test_full_mission_lifecycle_workflow(device):
                 0xCE,
                 0, 0, 0, 0, 0, 0,                     # pose
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  # trace
-                0, 0, 0x2C, 0x01, 0x10, 0x27, 0x00, 0xB8, 0x0B, 0x00,  # task: 300=>30%, total=10000, finish=3000
+                0, 0, 0xB8, 0x0B, 0x10, 0x27, 0x00, 0xB8, 0x0B, 0x00,  # task: 3000=>30%, total=10000, finish=3000
                 0xCE
             ]
         }]
