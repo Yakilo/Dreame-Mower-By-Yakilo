@@ -925,8 +925,17 @@ class DreameMowerDevice:
                     # Signal that mission is completed for stop-then-dock sequence
                     self._mission_completed_event.set()
                     
-                    # Mark mission as completed in pose coverage handler to cap progress at 100%
-                    self._pose_coverage_handler.mark_mission_completed()
+                    # Only cap progress at 100% when the mission completed normally.
+                    # Uses status (piid 7): STATUS_FINISHED (1) = normal,
+                    # STATUS_INTERRUPTED (3) = early stop (e.g. low battery).
+                    if self._mission_completion_handler.is_complete:
+                        self._pose_coverage_handler.mark_mission_completed()
+                    else:
+                        _LOGGER.debug(
+                            "Mission ended early (status=%s, stop_reason=%s), not marking progress as 100%%",
+                            self._mission_completion_handler.status,
+                            self._mission_completion_handler.stop_reason,
+                        )
                     
                     if self._mission_completion_handler.has_data_file:
                         self._mission_completion_handler.download_and_set_data_file(

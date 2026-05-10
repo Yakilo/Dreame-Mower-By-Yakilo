@@ -30,18 +30,20 @@ MISSION_COMPLETION_EVENT_PROPERTY_NAME = "mission_completion_event"
 PROGRESS_FIELD = "progress_percent"
 DURATION_FIELD = "duration_minutes"
 AREA_FIELD = "area_sqm"
-UNKNOWN_FIELD_7 = "unknown_field_7"
+STATUS_FIELD = "status"  # Task status (piid 7); 1=FINISHED, 2=UNFINISHED, 3=INTERRUPTED
 START_TIMESTAMP_FIELD = "start_timestamp"
 DATA_FILE_PATH_FIELD = "data_file_path"
 UNKNOWN_FIELD_11 = "unknown_field_11"
-CHARGING_EVENTS_FIELD = "charging_events"  # Previously unknown_field_13
-UNKNOWN_FIELD_14 = "unknown_field_14"
+CHARGING_EVENTS_FIELD = "charging_events"
+PLANNED_AREA_FIELD = "planned_area_sqm"  # Planned mowing area for the session in m²
 UNKNOWN_FIELD_15 = "unknown_field_15"
-UNKNOWN_FIELD_60 = "unknown_field_60"
+STOP_REASON_FIELD = "stop_reason"  # Why the mission ended (piid 60); 101 = low battery / returned to dock early
 MAP_NAME_FIELD = "map_name"
 
-# Keep old name for backward compatibility
-UNKNOWN_FIELD_13 = CHARGING_EVENTS_FIELD
+# Task status codes (piid 7)
+STATUS_FINISHED = 1     # Mission completed normally
+STATUS_UNFINISHED = 2   # Mission did not finish
+STATUS_INTERRUPTED = 3  # Mission was interrupted (e.g. low battery)
 
 
 class MissionCompletionEventHandler:
@@ -54,15 +56,15 @@ class MissionCompletionEventHandler:
         self._progress_percent: int | None = None
         self._duration_minutes: int | None = None
         self._area_sqm: float | None = None
-        self._unknown_field_7: int | None = None
+        self._status: int | None = None  # piid 7: STATUS_FINISHED/UNFINISHED/INTERRUPTED
         self._start_timestamp: int | None = None
         self._data_file_path: str | None = None
         self._unknown_field_11: int | None = None
-        self._unknown_field_60: int | None = None
+        self._stop_reason: int | None = None  # Why the mission ended (piid 60); 101 = low battery
         # Charging events during mission: list of [timestamp, duration_minutes] pairs
         # Each entry represents a charging session that occurred during the mowing mission
         self._charging_events: list | None = None
-        self._unknown_field_14: int | None = None  # Purpose unknown - observed values: 270, 280
+        self._planned_area_sqm: int | None = None  # Planned mowing area for the session in m²
         self._unknown_field_15: int | None = None  # Purpose unknown - observed values: -1, 2
         self._map_name: str | None = None  # Map identifier the mission was performed on (e.g. "map1")
         
@@ -114,8 +116,8 @@ class MissionCompletionEventHandler:
                     self._duration_minutes = int(value)
                 elif piid == 3:  # Area (divide by 100 to get m²)
                     self._area_sqm = float(value) / 100.0  # Convert to m²
-                elif piid == 7:  # Unknown field 7
-                    self._unknown_field_7 = int(value)
+                elif piid == 7:  # Task completion status (FINISHED=1, UNFINISHED=2, INTERRUPTED=3)
+                    self._status = int(value)
                 elif piid == 8:  # Start timestamp
                     self._start_timestamp = int(value)
                     self._start_datetime = datetime.fromtimestamp(value)
@@ -127,12 +129,12 @@ class MissionCompletionEventHandler:
                     # List of [timestamp, duration_minutes] pairs for charging sessions
                     # Example: [[1759318403, 24], [1759328060, 24]]
                     self._charging_events = value
-                elif piid == 14:  # Unknown field 14
-                    self._unknown_field_14 = int(value)
+                elif piid == 14:  # Planned area for the mowing session in m²
+                    self._planned_area_sqm = int(value)
                 elif piid == 15:  # Unknown field 15
                     self._unknown_field_15 = int(value)
-                elif piid == 60:  # Unknown field 60
-                    self._unknown_field_60 = int(value)
+                elif piid == 60:  # Stop reason (101 = low battery / returned to dock early)
+                    self._stop_reason = int(value)
                 elif piid == 16:  # Map name/identifier
                     self._map_name = str(value)
                 else:
@@ -165,14 +167,14 @@ class MissionCompletionEventHandler:
         self._progress_percent = None
         self._duration_minutes = None
         self._area_sqm = None
-        self._unknown_field_7 = None
+        self._status = None
         self._start_timestamp = None
         self._data_file_path = None
         self._unknown_field_11 = None
         self._charging_events = None
-        self._unknown_field_14 = None
+        self._planned_area_sqm = None
         self._unknown_field_15 = None
-        self._unknown_field_60 = None
+        self._stop_reason = None
         self._map_name = None
         self._start_datetime = None
         self._data_file_content = None
@@ -183,14 +185,14 @@ class MissionCompletionEventHandler:
             PROGRESS_FIELD: self._progress_percent,
             DURATION_FIELD: self._duration_minutes,
             AREA_FIELD: self._area_sqm,
-            UNKNOWN_FIELD_7: self._unknown_field_7,
+            STATUS_FIELD: self._status,
             START_TIMESTAMP_FIELD: self._start_timestamp,
             DATA_FILE_PATH_FIELD: self._data_file_path,
             UNKNOWN_FIELD_11: self._unknown_field_11,
             CHARGING_EVENTS_FIELD: self._charging_events,
-            UNKNOWN_FIELD_14: self._unknown_field_14,
+            PLANNED_AREA_FIELD: self._planned_area_sqm,
             UNKNOWN_FIELD_15: self._unknown_field_15,
-            UNKNOWN_FIELD_60: self._unknown_field_60,
+            STOP_REASON_FIELD: self._stop_reason,
             MAP_NAME_FIELD: self._map_name,
         }
    
@@ -239,10 +241,10 @@ class MissionCompletionEventHandler:
         self._data_file_content = content
     
     @property
-    def unknown_field_7(self) -> int | None:
-        """Return unknown field 7 value."""
-        return self._unknown_field_7
-    
+    def status(self) -> int | None:
+        """Return task completion status (piid 7): 1=FINISHED, 2=UNFINISHED, 3=INTERRUPTED."""
+        return self._status
+
     @property
     def unknown_field_11(self) -> int | None:
         """Return unknown field 11 value (possibly success indicator)."""
@@ -262,17 +264,9 @@ class MissionCompletionEventHandler:
         return self._charging_events
     
     @property
-    def unknown_field_13(self) -> list | None:
-        """Return charging events (alias for backward compatibility).
-        
-        Deprecated: Use charging_events property instead.
-        """
-        return self._charging_events
-
-    @property
-    def unknown_field_14(self) -> int | None:
-        """Return unknown field 14 value."""
-        return self._unknown_field_14
+    def planned_area_sqm(self) -> int | None:
+        """Return planned mowing area for the session in m²."""
+        return self._planned_area_sqm
 
     @property
     def unknown_field_15(self) -> int | None:
@@ -280,9 +274,9 @@ class MissionCompletionEventHandler:
         return self._unknown_field_15
 
     @property
-    def unknown_field_60(self) -> int | None:
-        """Return unknown field 60 value."""
-        return self._unknown_field_60
+    def stop_reason(self) -> int | None:
+        """Return why the mission ended (piid 60); 101 = low battery / returned to dock early."""
+        return self._stop_reason
 
     @property
     def map_name(self) -> str | None:
@@ -296,8 +290,15 @@ class MissionCompletionEventHandler:
     
     @property
     def is_complete(self) -> bool | None:
-        """Return True if mission appears to be complete (100% progress)."""
-        return self._progress_percent == 100 if self._progress_percent is not None else None
+        """Return True if the mission completed normally (not interrupted).
+
+        Uses status (piid 7) as the primary signal:
+        STATUS_FINISHED (1) → True; STATUS_UNFINISHED (2) or STATUS_INTERRUPTED (3) → False.
+        Returns True when status is absent — assume normal completion.
+        """
+        if self._status is not None:
+            return self._status == STATUS_FINISHED
+        return True
     
     @property
     def charging_event_count(self) -> int:

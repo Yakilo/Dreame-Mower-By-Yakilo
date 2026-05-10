@@ -1400,6 +1400,73 @@ async def test_mission_completion_caps_progress_at_100_percent(device):
 
 
 @pytest.mark.asyncio
+async def test_mission_completion_partial_does_not_cap_progress(device):
+    """Test that a partial mission (e.g. low battery return to dock) does not cap progress at 100%.
+
+    Regression test for issue #58: mower returned to dock after mowing ~4% of the
+    planned area but progress was shown as 100% because mark_mission_completed() was
+    called unconditionally on every 4:1 event.
+    """
+    property_changes = []
+
+    def property_change_callback(name, value):
+        property_changes.append((name, value))
+
+    device.register_property_callback(property_change_callback)
+
+    # Simulate progress at 4% via pose coverage property (1:4)
+    # Task bytes: percent=400 (4.00%), total=147500 centi-sqm (1475 m²), finish=6341 centi-sqm (63.41 m²)
+    # percent uint16 LE: 400 = 0x90, 0x01
+    # total uint24 LE: 147500 = 0xEC, 0x40, 0x02
+    # finish uint24 LE: 6341 = 0xC5, 0x18, 0x00
+    progress_message = {
+        'method': 'properties_changed',
+        'params': [{
+            'siid': 1,
+            'piid': 4,
+            'value': [
+                0xCE,
+                0, 0, 0, 0, 0, 0,                                          # pose (6 bytes)
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,              # trace (15 bytes)
+                1, 1, 0x90, 0x01, 0xEC, 0x40, 0x02, 0xC5, 0x18, 0x00,     # task (10 bytes)
+                0xCE
+            ]
+        }]
+    }
+    device._handle_message(progress_message)
+    assert device.mowing_progress_percent == pytest.approx(4.0, abs=0.1)
+
+    # Simulate mission completion event (4:1) with status=3 (STATUS_INTERRUPTED) and
+    # stop_reason=101 (low battery). The device sends status=INTERRUPTED when it returns
+    # to dock early — is_complete uses piid 7 (status) to detect early termination.
+    completion_event = {
+        'method': 'event_occured',
+        'params': {
+            'siid': 4,
+            'eiid': 1,
+            'arguments': [
+                {'piid': 1, 'value': 100},          # Coverage target mode (not actual %)
+                {'piid': 2, 'value': 46},            # Duration minutes
+                {'piid': 3, 'value': 6341},          # Actual area (centi-sqm)
+                {'piid': 7, 'value': 3},             # STATUS_INTERRUPTED: mission was cut short
+                {'piid': 8, 'value': 1775991797},    # Start timestamp
+                {'piid': 14, 'value': 1475},         # Planned area (m²)
+                {'piid': 60, 'value': 101},          # stop_reason: low battery / return to dock
+            ]
+        }
+    }
+    device._handle_message(completion_event)
+
+    # Progress should NOT have been capped at 100% — the mower only did ~4%
+    assert device.mowing_progress_percent == pytest.approx(4.0, abs=0.1)
+    assert device._pose_coverage_handler._mission_completed is False
+
+    # Mission completion event should still have been processed and notified
+    completion_events = [change for change in property_changes if change[0] == "mission_completion_event"]
+    assert len(completion_events) > 0
+
+
+@pytest.mark.asyncio
 async def test_status_change_to_mowing_resets_mission_completion(device):
     """Test that status change to mowing resets mission completion flag."""
     property_changes = []

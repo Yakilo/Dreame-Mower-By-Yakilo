@@ -10,15 +10,17 @@ from custom_components.dreame_mower.dreame.property.mission_completion import (
     PROGRESS_FIELD,
     DURATION_FIELD,
     AREA_FIELD,
-    UNKNOWN_FIELD_7,
+    STATUS_FIELD,
+    STATUS_FINISHED,
+    STATUS_UNFINISHED,
+    STATUS_INTERRUPTED,
     START_TIMESTAMP_FIELD,
     DATA_FILE_PATH_FIELD,
     UNKNOWN_FIELD_11,
     CHARGING_EVENTS_FIELD,
-    UNKNOWN_FIELD_13,  # For backward compatibility
-    UNKNOWN_FIELD_14,
+    PLANNED_AREA_FIELD,
     UNKNOWN_FIELD_15,
-    UNKNOWN_FIELD_60,
+    STOP_REASON_FIELD,
     MAP_NAME_FIELD,
 )
 
@@ -34,15 +36,13 @@ class TestMissionCompletionEventHandler:
         assert handler.progress_percent is None
         assert handler.duration_minutes is None
         assert handler.area_sqm is None
-        assert handler.unknown_field_7 is None
+        assert handler.status is None
         assert handler.start_timestamp is None
         assert handler.data_file_path is None
         assert handler.unknown_field_11 is None
         assert handler.charging_events is None
-        assert handler.unknown_field_13 is None  # Backward compat alias
-        assert handler.unknown_field_14 is None
         assert handler.unknown_field_15 is None
-        assert handler.unknown_field_60 is None
+        assert handler.stop_reason is None
         assert handler.start_datetime is None
 
     def test_parse_mission_completion_event_full_data(self):
@@ -51,19 +51,19 @@ class TestMissionCompletionEventHandler:
         notify_callback = Mock()
         
         # Create test data based on the Service 4:1 mission completion event format
-        # Example: Mission completed - 100% progress, 127 min duration, 68.20 m² area
+        # Example: Mission completed normally - status=FINISHED (1), stop_reason=-1
         test_arguments = [
-            {"piid": 1, "value": 100},  # Progress percentage
+            {"piid": 1, "value": 100},  # Coverage target (full coverage mode)
             {"piid": 2, "value": 127},  # Duration in minutes
             {"piid": 3, "value": 6820},  # Area value (68.20 m² when divided by 100)
-            {"piid": 7, "value": 42},  # Unknown field 7
+            {"piid": 7, "value": 1},  # STATUS_FINISHED: mission completed normally
             {"piid": 8, "value": 1725643523},  # Start timestamp (2024-09-06 20:32:03 UTC)
             {"piid": 9, "value": "/tmp/mowing_session_analysis_20240906_203203_extended.json"},  # Data file path
-            {"piid": 11, "value": 1},  # Unknown field 11 (possibly success indicator)
-            {"piid": 13, "value": []},  # Unknown field 13
-            {"piid": 14, "value": 280},  # Unknown field 14
+            {"piid": 11, "value": 1},  # Unknown field 11
+            {"piid": 13, "value": []},  # Charging events
+            {"piid": 14, "value": 70},  # Planned area in m²
             {"piid": 15, "value": 2},  # Unknown field 15
-            {"piid": 60, "value": 255},  # Unknown field 60
+            {"piid": 60, "value": -1},  # stop_reason: -1 = normal completion
         ]
         
         # Parse the event
@@ -76,15 +76,14 @@ class TestMissionCompletionEventHandler:
         assert handler.progress_percent == 100
         assert handler.duration_minutes == 127
         assert handler.area_sqm == 68.20  # 6820 / 100 = 68.20 m²
-        assert handler.unknown_field_7 == 42
+        assert handler.status == STATUS_FINISHED
         assert handler.start_timestamp == 1725643523
         assert handler.data_file_path == "/tmp/mowing_session_analysis_20240906_203203_extended.json"
         assert handler.unknown_field_11 == 1
         assert handler.charging_events == []
-        assert handler.unknown_field_13 == []  # Backward compat alias
-        assert handler.unknown_field_14 == 280
+        assert handler.planned_area_sqm == 70
         assert handler.unknown_field_15 == 2
-        assert handler.unknown_field_60 == 255
+        assert handler.stop_reason == -1
         
         # Verify datetime conversion
         assert handler.start_datetime is not None
@@ -94,21 +93,21 @@ class TestMissionCompletionEventHandler:
 
         # Verify helper properties
         assert handler.has_data_file is True
-        assert handler.is_complete is True
+        assert handler.is_complete is True  # status=FINISHED (1) → complete
         
         # Verify callback was called with main event data
         notify_callback.assert_any_call(MISSION_COMPLETION_EVENT_PROPERTY_NAME, {
             PROGRESS_FIELD: 100,
             DURATION_FIELD: 127,
             AREA_FIELD: 68.20,
-            UNKNOWN_FIELD_7: 42,
+            STATUS_FIELD: STATUS_FINISHED,
             START_TIMESTAMP_FIELD: 1725643523,
             DATA_FILE_PATH_FIELD: "/tmp/mowing_session_analysis_20240906_203203_extended.json",
             UNKNOWN_FIELD_11: 1,
             CHARGING_EVENTS_FIELD: [],
-            UNKNOWN_FIELD_14: 280,
+            PLANNED_AREA_FIELD: 70,
             UNKNOWN_FIELD_15: 2,
-            UNKNOWN_FIELD_60: 255,
+            STOP_REASON_FIELD: -1,
             MAP_NAME_FIELD: None,
         })
         
@@ -145,21 +144,21 @@ class TestMissionCompletionEventHandler:
         
         # Verify helper properties
         assert handler.has_data_file is False
-        assert handler.is_complete is False  # Not 100%
+        assert handler.is_complete is True  # No status → assume normal completion
         
         # Verify callback was called
         notify_callback.assert_any_call(MISSION_COMPLETION_EVENT_PROPERTY_NAME, {
             PROGRESS_FIELD: 85,
             DURATION_FIELD: 95,
             AREA_FIELD: None,
-            UNKNOWN_FIELD_7: None,
+            STATUS_FIELD: None,
             START_TIMESTAMP_FIELD: None,
             DATA_FILE_PATH_FIELD: None,
             UNKNOWN_FIELD_11: None,
             CHARGING_EVENTS_FIELD: None,
-            UNKNOWN_FIELD_14: None,
+            PLANNED_AREA_FIELD: None,
             UNKNOWN_FIELD_15: None,
-            UNKNOWN_FIELD_60: None,
+            STOP_REASON_FIELD: None,
             MAP_NAME_FIELD: None,
         })
 
@@ -286,6 +285,7 @@ class TestMissionCompletionEventHandler:
         handler._progress_percent = 100
         handler._duration_minutes = 60
         handler._area_sqm = 100.0
+        handler._status = STATUS_FINISHED
         handler._start_datetime = datetime.now()
         
         # Reset
@@ -295,6 +295,7 @@ class TestMissionCompletionEventHandler:
         assert handler.progress_percent is None
         assert handler.duration_minutes is None
         assert handler.area_sqm is None
+        assert handler.status is None
         assert handler.start_datetime is None
 
     def test_properties_return_correct_values(self):
@@ -305,32 +306,32 @@ class TestMissionCompletionEventHandler:
         handler._progress_percent = 95
         handler._duration_minutes = 120
         handler._area_sqm = 500.25
-        handler._unknown_field_7 = 42
+        handler._status = STATUS_INTERRUPTED  # mission was interrupted (e.g. low battery)
         handler._start_timestamp = 1725643523
         handler._data_file_path = "/tmp/test.json"
         handler._unknown_field_11 = 1
         handler._charging_events = []
-        handler._unknown_field_14 = 280
+        handler._planned_area_sqm = 600
         handler._unknown_field_15 = 2
-        handler._unknown_field_60 = 255
+        handler._stop_reason = 101  # low battery / returned to dock early
         handler._start_datetime = datetime(2024, 9, 6, 20, 32, 3)
         
         # Test all property accessors
         assert handler.progress_percent == 95
         assert handler.duration_minutes == 120
         assert handler.area_sqm == 500.25
-        assert handler.unknown_field_7 == 42
+        assert handler.status == STATUS_INTERRUPTED
         assert handler.start_timestamp == 1725643523
         assert handler.data_file_path == "/tmp/test.json"
         assert handler.unknown_field_11 == 1
         assert handler.charging_events == []
-        assert handler.unknown_field_13 == []  # Backward compat alias
-        assert handler.unknown_field_14 == 280
+        assert handler.planned_area_sqm == 600
         assert handler.unknown_field_15 == 2
-        assert handler.unknown_field_60 == 255
+        assert handler.stop_reason == 101
         assert handler.start_datetime == datetime(2024, 9, 6, 20, 32, 3)
         assert handler.has_data_file is True
-        assert handler.is_complete is False  # 95% not 100%
+        # status=STATUS_INTERRUPTED (3) ≠ STATUS_FINISHED (1) → is_complete is False
+        assert handler.is_complete is False
 
     def test_edge_case_empty_arguments(self):
         """Test parsing with empty arguments list."""
@@ -348,14 +349,14 @@ class TestMissionCompletionEventHandler:
             PROGRESS_FIELD: None,
             DURATION_FIELD: None,
             AREA_FIELD: None,
-            UNKNOWN_FIELD_7: None,
+            STATUS_FIELD: None,
             START_TIMESTAMP_FIELD: None,
             DATA_FILE_PATH_FIELD: None,
             UNKNOWN_FIELD_11: None,
             CHARGING_EVENTS_FIELD: None,
-            UNKNOWN_FIELD_14: None,
+            PLANNED_AREA_FIELD: None,
             UNKNOWN_FIELD_15: None,
-            UNKNOWN_FIELD_60: None,
+            STOP_REASON_FIELD: None,
             MAP_NAME_FIELD: None,
         })
 
@@ -389,11 +390,11 @@ class TestMissionCompletionEventHandler:
             {"piid": 1, "value": 100},  # Progress percentage (complete)
             {"piid": 2, "value": 183},  # Duration in minutes (3h 3min)
             {"piid": 3, "value": 25339},  # Area value (253.39 m² when divided by 100)
-            {"piid": 7, "value": 1},  # Unknown field 7
+            {"piid": 7, "value": 1},  # STATUS_FINISHED: mission completed normally
             {"piid": 8, "value": 1759314580},  # Start timestamp (2025-10-01)
             {"piid": 9, "value": "ali_dreame/2025/10/01/Nxxxxxx4/-1xxxxxxx8_162243699.0430.json"},  # Data file path
             {"piid": 11, "value": 0},  # Unknown field 11
-            {"piid": 60, "value": -1},  # Unknown field 60
+            {"piid": 60, "value": -1},  # stop_reason: -1 = normal completion
             {"piid": 13, "value": [[1759318403, 24], [1759328060, 24]]},  # Unknown field 13 - array data
             {"piid": 14, "value": 270},  # Unknown field 14
             {"piid": 15, "value": -1},  # Unknown field 15
@@ -409,15 +410,14 @@ class TestMissionCompletionEventHandler:
         assert handler.progress_percent == 100
         assert handler.duration_minutes == 183
         assert handler.area_sqm == 253.39  # 25339 / 100 = 253.39 m²
-        assert handler.unknown_field_7 == 1
+        assert handler.status == STATUS_FINISHED
         assert handler.start_timestamp == 1759314580
         assert handler.data_file_path == "ali_dreame/2025/10/01/Nxxxxxx4/-1xxxxxxx8_162243699.0430.json"
         assert handler.unknown_field_11 == 0
         assert handler.charging_events == [[1759318403, 24], [1759328060, 24]]
-        assert handler.unknown_field_13 == [[1759318403, 24], [1759328060, 24]]  # Backward compat
-        assert handler.unknown_field_14 == 270
+        assert handler.planned_area_sqm == 270
         assert handler.unknown_field_15 == -1
-        assert handler.unknown_field_60 == -1
+        assert handler.stop_reason == -1
         
         # Verify datetime conversion for 2025 timestamp
         assert handler.start_datetime is not None
@@ -427,21 +427,21 @@ class TestMissionCompletionEventHandler:
         
         # Verify helper properties
         assert handler.has_data_file is True
-        assert handler.is_complete is True
+        assert handler.is_complete is True  # status=FINISHED (1) → complete
         
         # Verify callback was called with main event data
         notify_callback.assert_any_call(MISSION_COMPLETION_EVENT_PROPERTY_NAME, {
             PROGRESS_FIELD: 100,
             DURATION_FIELD: 183,
             AREA_FIELD: 253.39,
-            UNKNOWN_FIELD_7: 1,
+            STATUS_FIELD: STATUS_FINISHED,
             START_TIMESTAMP_FIELD: 1759314580,
             DATA_FILE_PATH_FIELD: "ali_dreame/2025/10/01/Nxxxxxx4/-1xxxxxxx8_162243699.0430.json",
             UNKNOWN_FIELD_11: 0,
             CHARGING_EVENTS_FIELD: [[1759318403, 24], [1759328060, 24]],
-            UNKNOWN_FIELD_14: 270,
+            PLANNED_AREA_FIELD: 270,
             UNKNOWN_FIELD_15: -1,
-            UNKNOWN_FIELD_60: -1,
+            STOP_REASON_FIELD: -1,
             MAP_NAME_FIELD: None,
         })
         
@@ -540,7 +540,7 @@ class TestMissionCompletionEventHandler:
             {"piid": 1, "value": 102},   # Progress percent
             {"piid": 2, "value": 23},    # Duration minutes
             {"piid": 3, "value": 774},   # Area (7.74 m²)
-            {"piid": 7, "value": 2},
+            {"piid": 7, "value": 2},  # STATUS_UNFINISHED
             {"piid": 8, "value": 1772956800},  # Start timestamp
             {"piid": 9, "value": "ali_dreame/2026/03/08/HJxxxxxx4/-1xxxxxxx4_082338835.0169.json"},
             {"piid": 11, "value": 1},
@@ -564,13 +564,13 @@ class TestMissionCompletionEventHandler:
             PROGRESS_FIELD: 102,
             DURATION_FIELD: 23,
             AREA_FIELD: 7.74,
-            UNKNOWN_FIELD_7: 2,
+            STATUS_FIELD: STATUS_UNFINISHED,
             START_TIMESTAMP_FIELD: 1772956800,
             DATA_FILE_PATH_FIELD: "ali_dreame/2026/03/08/HJxxxxxx4/-1xxxxxxx4_082338835.0169.json",
             UNKNOWN_FIELD_11: 1,
             CHARGING_EVENTS_FIELD: [],
-            UNKNOWN_FIELD_14: 107,
+            PLANNED_AREA_FIELD: 107,
             UNKNOWN_FIELD_15: 0,
-            UNKNOWN_FIELD_60: 224,
+            STOP_REASON_FIELD: 224,
             MAP_NAME_FIELD: "map1",
         })
