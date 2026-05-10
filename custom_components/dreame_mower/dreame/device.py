@@ -1978,6 +1978,24 @@ class DreameMowerDevice:
         self._notify_property_change("activity", "paused")
         return True
 
+    async def dock_without_stopping(self) -> bool:
+        """Send mower to dock without stopping the active task.
+
+        Sends ACTION_DOCK directly, leaving any in-progress task intact so it
+        can be resumed later via resume().
+
+        Returns:
+            True if the dock command was sent successfully, False otherwise.
+        """
+        if not await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self._cloud_device.execute_action(ACTION_DOCK)
+        ):
+            _LOGGER.error("Failed to send DOCK command")
+            return False
+
+        self._notify_property_change("activity", "returning_to_charge")
+        return True
+
     async def return_to_dock(self) -> bool:
         """Return mower to dock.
         

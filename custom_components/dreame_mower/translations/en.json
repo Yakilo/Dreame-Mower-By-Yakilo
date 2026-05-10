@@ -134,6 +134,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Reset Robot Maintenance Counter"
+      },
+      "dock_without_stopping": {
+        "name": "Dock Without Stopping Task"
       }
     },
     "camera": {

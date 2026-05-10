@@ -1,4 +1,4 @@
-"""Button entities for resetting Dreame Mower consumable counters."""
+"""Button entities for Dreame Mower actions."""
 
 from __future__ import annotations
 
@@ -28,14 +28,14 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Dreame Mower reset buttons from a config entry."""
+    """Set up Dreame Mower buttons from a config entry."""
     coordinator: DreameMowerCoordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    async_add_entities(
-        [
-            DreameMowerResetConsumableButton(coordinator, item, icon, translation_key)
-            for item, icon, translation_key in _RESET_BUTTONS
-        ]
-    )
+    entities: list[ButtonEntity] = [
+        DreameMowerResetConsumableButton(coordinator, item, icon, translation_key)
+        for item, icon, translation_key in _RESET_BUTTONS
+    ]
+    entities.append(DreameMowerDockWithoutStoppingButton(coordinator))
+    async_add_entities(entities)
 
 
 class DreameMowerResetConsumableButton(DreameMowerEntity, ButtonEntity):
@@ -60,3 +60,17 @@ class DreameMowerResetConsumableButton(DreameMowerEntity, ButtonEntity):
             await self.coordinator.async_fetch_consumable_data()
         except Exception as ex:
             _LOGGER.warning("Consumable refresh after reset failed: %s", ex)
+
+
+class DreameMowerDockWithoutStoppingButton(DreameMowerEntity, ButtonEntity):
+    """Button that sends the mower to dock without cancelling the active task."""
+
+    def __init__(self, coordinator: DreameMowerCoordinator) -> None:
+        super().__init__(coordinator, "dock_without_stopping")
+        self._attr_icon = "mdi:home-battery"
+        self._attr_translation_key = "dock_without_stopping"
+
+    async def async_press(self) -> None:
+        """Send mower to dock without stopping the current task."""
+        if not await self.coordinator.device.dock_without_stopping():
+            _LOGGER.error("Failed to send mower to dock without stopping")
