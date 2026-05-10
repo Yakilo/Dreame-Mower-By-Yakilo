@@ -57,7 +57,11 @@
         "title": "Optionen",
         "description": "Konfigurieren Sie die Benachrichtigungseinstellungen für die Integration von Dreame Mäher.",
         "data": {
-          "notify": "Benachrichtigungstypen"
+          "notify": "Benachrichtigungstypen",
+          "map_rotation": "Kartenrotation",
+          "map_show_title": "Kartentitel anzeigen",
+          "map_show_legend": "Kartenlegende anzeigen",
+          "map_padding": "Kartenrand (Pixel)"
         }
       }
     }

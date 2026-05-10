@@ -19,7 +19,7 @@ from homeassistant.helpers.device_registry import format_mac
 from homeassistant.core import callback
 
 from .dreame.cloud.cloud_base import DreameMowerCloudBase
-from .const import CONF_NOTIFY, CONF_MAP_ROTATION, DOMAIN
+from .const import CONF_NOTIFY, CONF_MAP_ROTATION, CONF_MAP_SHOW_TITLE, CONF_MAP_SHOW_LEGEND, CONF_MAP_PADDING, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -393,10 +393,16 @@ class DreameMowerOptionsFlow(OptionsFlow):
         if current_notify:
             current_notify = [n for n in current_notify if n in NOTIFICATION]
         current_rotation = self.config_entry.options.get(CONF_MAP_ROTATION, 0)
+        current_show_title = self.config_entry.options.get(CONF_MAP_SHOW_TITLE, True)
+        current_show_legend = self.config_entry.options.get(CONF_MAP_SHOW_LEGEND, True)
+        current_padding = self.config_entry.options.get(CONF_MAP_PADDING, 50)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
                 vol.Required(CONF_NOTIFY, default=current_notify): cv.multi_select(NOTIFICATION),
                 vol.Required(CONF_MAP_ROTATION, default=current_rotation): vol.In([0, 90, 180, 270]),
+                vol.Required(CONF_MAP_SHOW_TITLE, default=current_show_title): bool,
+                vol.Required(CONF_MAP_SHOW_LEGEND, default=current_show_legend): bool,
+                vol.Required(CONF_MAP_PADDING, default=current_padding): vol.All(int, vol.Range(min=0, max=200)),
             }),
         )

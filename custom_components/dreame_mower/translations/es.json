@@ -57,7 +57,11 @@
         "title": "Opción",
         "description": "Configurar la configuración de notificación para la integración de los cortacésped Dreame.",
         "data": {
-          "notify": "Tipos de notificación"
+          "notify": "Tipos de notificación",
+          "map_rotation": "Rotación del mapa",
+          "map_show_title": "Mostrar título del mapa",
+          "map_show_legend": "Mostrar leyenda del mapa",
+          "map_padding": "Margen del mapa (píxeles)"
         }
       }
     }

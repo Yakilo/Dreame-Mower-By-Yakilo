@@ -58,7 +58,10 @@
         "description": "Configure which notification types you want to receive from your Dreame Mower.",
         "data": {
           "notify": "Notification Types",
-          "map_rotation": "Map Rotation"
+          "map_rotation": "Map Rotation",
+          "map_show_title": "Show Map Title",
+          "map_show_legend": "Show Map Legend",
+          "map_padding": "Map Padding (pixels)"
         }
       }
     }

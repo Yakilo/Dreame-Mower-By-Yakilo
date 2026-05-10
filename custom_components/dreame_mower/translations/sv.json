@@ -57,7 +57,11 @@
         "title": "Alternativ",
         "description": "Konfigurera inställningar för meddelanden för Dreame Mower -integrationen.",
         "data": {
-          "notify": "Anmälningstyper"
+          "notify": "Anmälningstyper",
+          "map_rotation": "Kartrotation",
+          "map_show_title": "Visa karttitel",
+          "map_show_legend": "Visa kartförklaring",
+          "map_padding": "Kartutfyllnad (pixlar)"
         }
       }
     }

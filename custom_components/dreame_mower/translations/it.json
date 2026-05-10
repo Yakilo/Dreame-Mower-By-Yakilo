@@ -57,7 +57,11 @@
         "title": "Opzioni",
         "description": "Configurare le impostazioni di notifica per l'integrazione del tosaerba da sogno.",
         "data": {
-          "notify": "Tipi di notifica"
+          "notify": "Tipi di notifica",
+          "map_rotation": "Rotazione mappa",
+          "map_show_title": "Mostra titolo mappa",
+          "map_show_legend": "Mostra legenda mappa",
+          "map_padding": "Margine mappa (pixel)"
         }
       }
     }

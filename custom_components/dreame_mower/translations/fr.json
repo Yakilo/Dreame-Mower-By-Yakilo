@@ -57,7 +57,11 @@
         "title": "Options",
         "description": "Configurer les paramètres de notification pour l'intégration de la tondeuse Dreame.",
         "data": {
-          "notify": "Types de notification"
+          "notify": "Types de notification",
+          "map_rotation": "Rotation de la carte",
+          "map_show_title": "Afficher le titre de la carte",
+          "map_show_legend": "Afficher la légende de la carte",
+          "map_padding": "Marge de la carte (pixels)"
         }
       }
     }

@@ -57,7 +57,11 @@
         "title": "Lehetőségek",
         "description": "Konfigurálja a Dreame fűnyíró integráció értesítési beállításait.",
         "data": {
-          "notify": "Értesítési típusok"
+          "notify": "Értesítési típusok",
+          "map_rotation": "Térkép elforgatása",
+          "map_show_title": "Térképcím megjelenítése",
+          "map_show_legend": "Térképjelmagyarázat megjelenítése",
+          "map_padding": "Térkép kitöltés (képpont)"
         }
       }
     }

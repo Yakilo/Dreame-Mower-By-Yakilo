@@ -57,7 +57,11 @@
         "title": "Opções",
         "description": "Configurar configurações de notificação para a integração do cortador de cortinas de sonho.",
         "data": {
-          "notify": "Tipos de notificação"
+          "notify": "Tipos de notificação",
+          "map_rotation": "Rotação do mapa",
+          "map_show_title": "Mostrar título do mapa",
+          "map_show_legend": "Mostrar legenda do mapa",
+          "map_padding": "Margem do mapa (píxeis)"
         }
       }
     }

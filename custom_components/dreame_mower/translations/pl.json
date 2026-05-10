@@ -57,7 +57,11 @@
         "title": "Opcje",
         "description": "Skonfiguruj ustawienia powiadomień integracji kosiarki Dreame.",
         "data": {
-          "notify": "Typy powiadomień"
+          "notify": "Typy powiadomień",
+          "map_rotation": "Obrót mapy",
+          "map_show_title": "Pokaż tytuł mapy",
+          "map_show_legend": "Pokaż legendę mapy",
+          "map_padding": "Margines mapy (piksele)"
         }
       }
     }

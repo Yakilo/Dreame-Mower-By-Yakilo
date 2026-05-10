@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DATA_COORDINATOR, DOMAIN, CONF_MAP_ROTATION
+from .const import DATA_COORDINATOR, DOMAIN, CONF_MAP_ROTATION, CONF_MAP_SHOW_TITLE, CONF_MAP_SHOW_LEGEND, CONF_MAP_PADDING
 from .coordinator import DreameMowerCoordinator
 from .entity import DreameMowerEntity
 
@@ -77,6 +77,9 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
         
         # Track current rotation to detect changes
         self._current_rotation = self.config_entry.options.get(CONF_MAP_ROTATION, 0)
+        self._current_show_title = self.config_entry.options.get(CONF_MAP_SHOW_TITLE, True)
+        self._current_show_legend = self.config_entry.options.get(CONF_MAP_SHOW_LEGEND, True)
+        self._current_padding = self.config_entry.options.get(CONF_MAP_PADDING, 50)
         
         # Register for property change notifications
         self.coordinator.device.register_property_callback(self._handle_property_change)
@@ -149,9 +152,21 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
     async def _async_config_entry_updated(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Handle config entry options update."""
         new_rotation = entry.options.get(CONF_MAP_ROTATION, 0)
-        if new_rotation != self._current_rotation:
-            self._current_rotation = new_rotation
-            # Re-render the image with new rotation
+        new_show_title = entry.options.get(CONF_MAP_SHOW_TITLE, True)
+        new_show_legend = entry.options.get(CONF_MAP_SHOW_LEGEND, True)
+        new_padding = entry.options.get(CONF_MAP_PADDING, 50)
+        changed = (
+            new_rotation != self._current_rotation
+            or new_show_title != self._current_show_title
+            or new_show_legend != self._current_show_legend
+            or new_padding != self._current_padding
+        )
+        self._current_rotation = new_rotation
+        self._current_show_title = new_show_title
+        self._current_show_legend = new_show_legend
+        self._current_padding = new_padding
+        if changed:
+            # Re-render the image with new settings
             if self._is_on:
                 if self._live_coordinates:
                     # Re-render live image
@@ -353,7 +368,10 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
         return generate_svg_map_image(
             map_data, None, self.coordinator,
             rotation=self._current_rotation,
-            live_coordinates=self._live_coordinates
+            live_coordinates=self._live_coordinates,
+            show_title=self._current_show_title,
+            show_legend=self._current_show_legend,
+            padding=self._current_padding,
         )
 
     @property
@@ -481,7 +499,13 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
 
     def _generate_map_image(self, data: dict[str, Any]) -> bytes:
         """Generate map image in SVG format from map data."""
-        return generate_svg_map_image(data, self._historical_file_path, self.coordinator, rotation=self._current_rotation)
+        return generate_svg_map_image(
+            data, self._historical_file_path, self.coordinator,
+            rotation=self._current_rotation,
+            show_title=self._current_show_title,
+            show_legend=self._current_show_legend,
+            padding=self._current_padding,
+        )
 
     @property
     def available(self) -> bool:
