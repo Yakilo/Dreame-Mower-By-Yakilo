@@ -37,6 +37,7 @@ def _make_coordinator(connected=True, status_code=0):
     coordinator.spot_areas = []
     coordinator.device.start_mowing_zones = AsyncMock(return_value=True)
     coordinator.device.start_mowing_spots = AsyncMock(return_value=True)
+    coordinator.device.has_unfinished_task = False
     return coordinator
 
 
@@ -194,6 +195,47 @@ async def test_async_start_spot_mowing_calls_device_spot_start():
     await entity.async_start_spot_mowing([4, 5])
 
     entity.coordinator.device.start_mowing_spots.assert_awaited_once_with([4, 5])
+
+
+@pytest.mark.asyncio
+async def test_async_start_mowing_resumes_when_paused():
+    coordinator = _make_coordinator()
+    coordinator.device.resume = AsyncMock(return_value=True)
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.PAUSED
+
+    await entity.async_start_mowing()
+
+    coordinator.device.resume.assert_awaited_once()
+    coordinator.device.start_mowing.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_start_mowing_starts_fresh_when_not_paused():
+    coordinator = _make_coordinator()
+    coordinator.device.resume = AsyncMock(return_value=True)
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED
+
+    await entity.async_start_mowing()
+
+    coordinator.device.start_mowing.assert_awaited_once_with(mode=MowingMode.ALL_AREA)
+    coordinator.device.resume.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_start_mowing_resumes_when_docked_with_unfinished_task():
+    """When docked but has_unfinished_task is True, start_mowing should resume."""
+    coordinator = _make_coordinator()
+    coordinator.device.resume = AsyncMock(return_value=True)
+    coordinator.device.has_unfinished_task = True
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED  # robot returned to dock after pause
+
+    await entity.async_start_mowing()
+
+    coordinator.device.resume.assert_awaited_once()
+    coordinator.device.start_mowing.assert_not_awaited()
 
 
 @pytest.mark.asyncio

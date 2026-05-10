@@ -106,8 +106,14 @@ class DreameMowerLawnMower(DreameMowerEntity, LawnMowerEntity):
                 self.schedule_update_ha_state()
 
     async def async_start_mowing(self) -> None:
-        """Start mowing using the device's public mowing entrypoint."""
+        """Start or resume mowing."""
         try:
+            # If currently paused or has an unfinished task, attempt to resume instead of starting a new task
+            if (self._attr_activity == LawnMowerActivity.PAUSED or self.coordinator.device.has_unfinished_task):
+                if not await self.coordinator.device.resume():
+                    _LOGGER.error("Failed to resume mowing")
+                return
+
             mode = self.coordinator.selected_mowing_mode
             start_kwargs: dict[str, Any] = {"mode": mode}
             if mode == MowingMode.EDGE:

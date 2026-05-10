@@ -103,6 +103,10 @@ ACTION_STOP = ActionIdentifier(siid=5, aiid=2, name="stop")
 ACTION_DOCK = ActionIdentifier(siid=5, aiid=3, name="dock")
 ACTION_PAUSE = ActionIdentifier(siid=5, aiid=4, name="pause")
 
+# Embedded protocol task payloads (sent via SCHEDULING_TASK_PROPERTY 2:50)
+# Format: {m: 'a', p: <priority>, o: <opcode>, d?: <data>}
+TASK_PAYLOAD_RESUME = {"m": "a", "p": 0, "o": 5}  # continueControl
+
 # Device status mapping for STATUS_PROPERTY (2:1)
 # 
 # Charging State Refinement (via correlation with CHARGING_STATUS_PROPERTY 3:2):

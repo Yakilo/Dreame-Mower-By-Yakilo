@@ -12,6 +12,12 @@ import logging
 from typing import Any, Callable
 from ..const import PROPERTY_1_1, SETTINGS_CHANGE_PROPERTY
 
+# Heartbeat (prop 1:1) decoded constants
+_MAIN_STATE_MOWING = 4
+TASK_STATUS_PAUSED = 36  # raw subState when mowing task is paused
+TASK_STATUS_DOCK = 40    # raw subState when mowing task is interrupted by return-to-dock
+PROPERTY_1_1_UNFINISHED_TASK_NAME = "property_1_1_has_unfinished_task"
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -27,8 +33,9 @@ class Property11Handler:
     def __init__(self) -> None:
         """Initialize property handler."""
         self._last_value: list[int] | None = None
-    
-    def parse_value(self, value: list[int]) -> bool:
+        self._has_unfinished_task: bool = False
+
+    def parse_value(self, value: list[int], notify_callback: Callable[[str, Any], None] | None = None) -> bool:
         """Parse and log property 1:1 value."""
         try:
             if not isinstance(value, list):
@@ -39,13 +46,14 @@ class Property11Handler:
 
             # Known format: 20-byte array with sentinel 0xCE at positions 0 and 19
             if len(value) == 20 and value[0] == 206 and value[19] == 206:
-                payload = value[1:19]  # p0..p17
-                raw_battery = payload[10]  # Known: raw battery state with charging flag
+                raw_battery = value[11]  # byte 11: raw battery state with charging flag
+                main_state = (value[12] & 0x0F) - 1  # byte 12: (mainState+1) | (seq<<4)
+                sub_state = value[13]  # byte 13: subState
                 _LOGGER.debug(
-                    "Property 1:1 received - raw_battery: %d, payload: %s",
-                    raw_battery,
-                    payload
+                    "Property 1:1 received - raw_battery: %d, main_state: %d, sub_state: %d",
+                    raw_battery, main_state, sub_state,
                 )
+                self._update_unfinished_task(main_state, sub_state, notify_callback)
             elif len(value) == 24:
                 # 24-byte variant seen on mova.mower.g2405c firmware 4.3.6_0062 (issue #18)
                 _LOGGER.debug("Property 1:1 received (24-byte variant): %s", value)
@@ -61,7 +69,28 @@ class Property11Handler:
         except Exception as ex:
             _LOGGER.error("Failed to parse property 1:1: %s", ex)
             return False
-    
+
+    def _update_unfinished_task(
+        self,
+        main_state: int,
+        sub_state: int,
+        notify_callback: Callable[[str, Any], None] | None,
+    ) -> None:
+        """Update has_unfinished_task flag and notify if it changed."""
+        if main_state == _MAIN_STATE_MOWING:
+            new_value = sub_state in (TASK_STATUS_PAUSED, TASK_STATUS_DOCK)
+        else:
+            new_value = False
+        if new_value != self._has_unfinished_task:
+            self._has_unfinished_task = new_value
+            if notify_callback is not None:
+                notify_callback(PROPERTY_1_1_UNFINISHED_TASK_NAME, new_value)
+
+    @property
+    def has_unfinished_task(self) -> bool:
+        """Return True when a paused or dock-interrupted mowing task can be resumed."""
+        return self._has_unfinished_task
+
     @property
     def last_value(self) -> list[int] | None:
         """Return last received property value."""
@@ -116,11 +145,16 @@ class MiscPropertyHandler:
         """Check if a property is a miscellaneous property."""
         return PROPERTY_1_1.matches(siid, piid) or SETTINGS_CHANGE_PROPERTY.matches(siid, piid)
     
+    @property
+    def has_unfinished_task(self) -> bool:
+        """Return True when a paused or dock-interrupted mowing task can be resumed."""
+        return self._property_1_1_handler.has_unfinished_task
+
     def handle_property_update(self, siid: int, piid: int, value: Any, notify_callback: Callable[[str, Any], None]) -> bool:
         """Handle miscellaneous property updates."""
         try:
             if PROPERTY_1_1.matches(siid, piid):
-                return self._property_1_1_handler.parse_value(value)
+                return self._property_1_1_handler.parse_value(value, notify_callback)
             elif SETTINGS_CHANGE_PROPERTY.matches(siid, piid):
                 return self._settings_change_handler.parse_value(value)
             else:

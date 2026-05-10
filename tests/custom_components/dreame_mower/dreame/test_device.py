@@ -76,6 +76,8 @@ class MockCloudDevice:
 
     def action(self, siid: int, aiid: int, parameters=None, retry_count: int = 2):
         """Mock action call; return a boolean to indicate success."""
+        if not self.connected:
+            return False
         self.action_calls.append((siid, aiid, parameters, retry_count))
         if callable(self.action_result):
             return self.action_result(siid, aiid, parameters, retry_count)
@@ -317,6 +319,27 @@ async def test_pause_when_connected(device):
 async def test_pause_when_disconnected(device):
     """Test pause when device is disconnected."""
     result = await device.pause()
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_resume_when_connected_notifies_activity_mowing(device):
+    """resume() should succeed and notify that the mower is mowing."""
+    device._cloud_device.set_connected_state(True)
+    await device.connect()
+    property_changes = []
+    device.register_property_callback(lambda name, value: property_changes.append((name, value)))
+
+    result = await device.resume()
+
+    assert result is True
+    assert ("activity", "mowing") in property_changes
+
+
+@pytest.mark.asyncio
+async def test_resume_when_disconnected_returns_false(device):
+    """Resume should fail gracefully when disconnected."""
+    result = await device.resume()
     assert result is False
 
 
@@ -690,6 +713,7 @@ def test_spot_areas_returns_serializable_entries(device):
 
 def test_refresh_current_map_id_reads_active_map_from_mapl(device):
     """MAPL should authoritatively expose the current map via the isCurMap flag."""
+    device._cloud_device.set_connected_state(True)
     property_changes = []
     device.register_property_callback(lambda name, value: property_changes.append((name, value)))
     device._vector_map = SimpleNamespace(
@@ -764,6 +788,7 @@ async def test_reset_consumable_counter_zeroes_selected_slot(device):
 
 def test_fetch_vector_map_updates_current_map_id_from_mapl(device):
     """Vector map refresh should also refresh current_map_id from MAPL."""
+    device._cloud_device.set_connected_state(True)
     device._cloud_device.batch_device_datas_result = {"MAP.info": "2"}
     device._cloud_device.action_result = {
         "siid": 2,

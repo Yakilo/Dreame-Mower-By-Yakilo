@@ -82,6 +82,7 @@ from .const import (
     ACTION_PAUSE,
     ACTION_STOP,
     ACTION_DOCK,
+    TASK_PAYLOAD_RESUME,
     DEVICE_CODE_PROPERTY,
     PROPERTY_1_1,
     DeviceStatus,
@@ -229,6 +230,11 @@ class DreameMowerDevice:
     def status_code(self) -> int:
         """Return raw device status code."""
         return self._status_code
+
+    @property
+    def has_unfinished_task(self) -> bool:
+        """Return True if a mowing task was paused or interrupted and can be resumed."""
+        return self._misc_handler.has_unfinished_task
 
     @property
     def bluetooth_connected(self) -> bool | None:
@@ -1046,6 +1052,15 @@ class DreameMowerDevice:
         # Reset mission completion flag for new mowing session
         self._pose_coverage_handler.reset_mission_completion()
         
+        self._notify_property_change("activity", "mowing")
+        return True
+
+    async def resume(self) -> bool:
+        """Resume mowing after pause (continueControl: embedded protocol {m:'a', p:0, o:5} via 2:50)."""
+        result = await self._send_task_payload("resume", TASK_PAYLOAD_RESUME)
+        if not result:
+            _LOGGER.error("Failed to send RESUME command")
+            return False
         self._notify_property_change("activity", "mowing")
         return True
 
