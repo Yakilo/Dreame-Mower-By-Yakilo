@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Сбросить счётчик обслуживания"
+      },
+      "dock_without_stopping": {
+        "name": "Вернуться на базу без остановки задачи"
       }
     }
   }

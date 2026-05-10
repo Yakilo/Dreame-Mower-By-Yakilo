@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Azzera contatore manutenzione"
+      },
+      "dock_without_stopping": {
+        "name": "Torna alla base senza fermare il compito"
       }
     }
   }

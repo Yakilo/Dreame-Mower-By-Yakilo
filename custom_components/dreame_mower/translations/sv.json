@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Återställ underhållsräknaren"
+      },
+      "dock_without_stopping": {
+        "name": "Docka utan att stoppa uppgiften"
       }
     }
   }

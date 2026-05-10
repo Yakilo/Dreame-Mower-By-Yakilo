@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Wartungszähler zurücksetzen"
+      },
+      "dock_without_stopping": {
+        "name": "Andocken ohne Aufgabe zu stoppen"
       }
     }
   }

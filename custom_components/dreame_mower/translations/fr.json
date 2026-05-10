@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Réinitialiser le compteur de maintenance"
+      },
+      "dock_without_stopping": {
+        "name": "Revenir à la base sans arrêter la tâche"
       }
     }
   }

@@ -139,6 +139,9 @@
       },
       "reset_robot_maintenance": {
         "name": "Repor contador de manutenção"
+      },
+      "dock_without_stopping": {
+        "name": "Regressar à base sem parar a tarefa"
       }
     }
   }
