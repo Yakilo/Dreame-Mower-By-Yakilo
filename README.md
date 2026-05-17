@@ -28,7 +28,7 @@ Provided "as-is" under the MIT License for personal, non-commercial use with dev
 
 ## UI Elements
 
-The current release does not expose map, zone, or edge selection controls in the Home Assistant UI yet.
+The current release exposes map, zone, and edge selection as select entities in Home Assistant. Selecting **multiple zones or areas** at once is not yet available in the UI — use the service actions below for that.
 
 ### TODO: Hierarchical Mowing UI
 
@@ -41,6 +41,36 @@ The intended UI flow is:
 5. Manual control is expected to depend on Bluetooth and remains further out in the roadmap.
 
 The device layer already tracks map metadata and verified mowing modes so this UI can be added later without reworking the protocol layer again.
+
+## Service Actions
+
+Zone and area selection is available via the select entities in the UI. For mowing **multiple zones or areas** in a single run without returning to the station between them, use the service calls below.
+
+### `dreame_mower.start_zone_mowing`
+
+Start mowing one or more zones without the mower returning to the station between them.
+
+```yaml
+action: dreame_mower.start_zone_mowing
+target:
+  entity_id: lawn_mower.your_mower
+data:
+  zone_ids: [1, 3]
+```
+
+Zone IDs correspond to the zones defined on your map. You can find them via the zone select entities exposed by the integration.
+
+### `dreame_mower.start_spot_mowing`
+
+Start mowing one or more spot areas by their IDs.
+
+```yaml
+action: dreame_mower.start_spot_mowing
+target:
+  entity_id: lawn_mower.your_mower
+data:
+  spot_area_ids: [2, 4]
+```
 
 ## Installation
 
