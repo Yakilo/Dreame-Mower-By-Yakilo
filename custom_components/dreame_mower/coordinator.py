@@ -402,8 +402,8 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 desc = value[NOTIFICATION_DESCRIPTION_FIELD]
                 self.hass.create_task(self._notify(
                     f"dreame_mower_device_error_{code}",
-                    f"\U0001f6a8 {self.device_model} Error: {name}",
-                    f"**Error Code:** {code}\n\n**Description:** {desc}\n\n**Device:** {self.device_model} (Firmware: {self.device_firmware})\n\nPlease check your mower and address any issues indicated by this error code.",
+                    f"\U0001f6a8 {self.device_name}: {name}",
+                    f"**Description:** {desc}\n\n**Error Code:** {code}\n**Device:** {self.device_name} ({self.device_model}) — Firmware {self.device_firmware}",
                 ))
 
         elif property_name == DEVICE_CODE_WARNING_PROPERTY_NAME and isinstance(value, dict):
@@ -412,9 +412,9 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 name = value[NOTIFICATION_NAME_FIELD]
                 desc = value[NOTIFICATION_DESCRIPTION_FIELD]
                 self.hass.create_task(self._notify(
-                    f"dreame_mower_device_error_{code}",
-                    f"\U0001f6a8 {self.device_model} Error: {name}",
-                    f"**Error Code:** {code}\n\n**Description:** {desc}\n\n**Device:** {self.device_model} (Firmware: {self.device_firmware})\n\nPlease check your mower and address any issues indicated by this error code.",
+                    f"dreame_mower_device_warning_{code}",
+                    f"\u26a0\ufe0f {self.device_name}: {name}",
+                    f"**Description:** {desc}\n\n**Warning Code:** {code}\n**Device:** {self.device_name} ({self.device_model}) — Firmware {self.device_firmware}",
                 ))
 
         elif property_name == DEVICE_CODE_INFO_PROPERTY_NAME and isinstance(value, dict):
@@ -424,16 +424,16 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 desc = value[NOTIFICATION_DESCRIPTION_FIELD]
                 self.hass.create_task(self._notify(
                     f"dreame_mower_device_info_{code}",
-                    f"\u2139\ufe0f {self.device_model} Status: {name}",
-                    f"**Status Code:** {code}\n\n**Description:** {desc}\n\n**Device:** {self.device_model} (Firmware: {self.device_firmware})",
+                    f"\u2139\ufe0f {self.device_name}: {name}",
+                    f"**Description:** {desc}\n\n**Info Code:** {code}\n**Device:** {self.device_name} ({self.device_model}) — Firmware {self.device_firmware}",
                 ))
 
         elif property_name == POWER_STATE_PROPERTY.name and value == 1:
             if NOTIFICATION_INFORMATION in notify_options:
                 self.hass.create_task(self._notify(
                     "dreame_mower_device_info_power_off",
-                    f"\u2139\ufe0f {self.device_model} Status: Mower Powered Off",
-                    f"**Description:** The mower has been powered off\n\n**Device:** {self.device_model} (Firmware: {self.device_firmware})",
+                    f"\u2139\ufe0f {self.device_name}: Mower Powered Off",
+                    f"**Description:** The mower has been powered off\n\n**Device:** {self.device_name} ({self.device_model}) — Firmware {self.device_firmware}",
                 ))
         
         
