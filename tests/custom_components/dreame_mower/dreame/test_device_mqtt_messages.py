@@ -469,16 +469,59 @@ class TestDreameSwbotDeviceMqtt:
         assert pool_device.status_code == 6
         assert ("status", 6) in notifications
 
-    def test_pool_robot_1_1_no_notification(self, pool_device):
-        """Verify 1:1 capability array is silently acked — no HA property notification emitted."""
+    def test_pool_robot_1_1_decodes_charging_and_notifies(self, pool_device):
+        """Verify 1:1 heartbeat decodes charging flag from byte 9 and emits status notification."""
         notifications = []
         pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
 
+        # data[9] = 202 (0b11001010): bit7=1 → charging, bits0-6=74 → battery 74%
         pool_device._handle_message({
             "id": 494846,
             "method": "properties_changed",
-            "params": [{"piid": 1, "siid": 1, "value": [1, 0, 0, 0, 0, 0, 0, 0, 0, 229, 188, 0, 0, 0, 0, 0, 0, 8, 91, 2]}]
+            "params": [{"piid": 1, "siid": 1, "value": [1, 0, 0, 0, 0, 0, 0, 0, 0, 202, 191, 0, 0, 0, 0, 0, 0, 8, 189, 2]}]
         })
 
-        # No notifications expected — handled silently
-        assert notifications == []
+        assert pool_device._swbot_charging is True
+        assert pool_device.battery_percent == 74
+        assert pool_device.status == "charging"
+        # Battery and status notifications emitted
+        assert ("battery_percent", 74) in notifications
+        assert ("status", pool_device.status_code) in notifications
+
+    def test_pool_robot_1_1_discharging(self, pool_device):
+        """Verify 1:1 with bit 7 clear → not charging, status = idle."""
+        # data[9] = 74 (0b01001010): bit7=0 → not charging, bits0-6=74 → battery 74%
+        pool_device._handle_message({
+            "id": 1,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 1, "value": [1, 0, 0, 0, 0, 0, 0, 0, 0, 74, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}]
+        })
+
+        assert pool_device._swbot_charging is False
+        assert pool_device.status == "idle"
+
+    def test_pool_robot_status_cleaning(self, pool_device):
+        """Status code 4 means cleaning regardless of charging flag."""
+        # First set charging=True via 1:1
+        pool_device._handle_message({
+            "id": 1,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 1, "value": [1, 0, 0, 0, 0, 0, 0, 0, 0, 202, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}]
+        })
+        assert pool_device._swbot_charging is True
+
+        # Then set status=4 via 2:1
+        pool_device._handle_message({
+            "id": 2,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 2, "value": 4}]
+        })
+
+        assert pool_device.status_code == 4
+        assert pool_device.status == "cleaning"
+
+    def test_pool_robot_status_idle_when_no_charging_info(self, pool_device):
+        """Status defaults to idle when no 1:1 data received yet and not cleaning."""
+        # Fresh device has _swbot_charging=None and status_code=0
+        assert pool_device._swbot_charging is None
+        assert pool_device.status == "idle"

@@ -2038,16 +2038,51 @@ class DreameSwbotDevice(DreameMowerDevice):
     """Device handler for Dreame pool robots (dreame.swbot.* series).
 
     The Z1 only exposes three MiOT properties via REST/MQTT:
-      2:1  status
+      2:1  status  — 4 = cleaning, any other value = not cleaning
       3:1  battery
-      1:1  capability array (pushed every ~60 s, not yet decoded)
-
-    Everything else (scheduling, device-codes, OTA, maps …) is mower-specific
-    and returns code=-1 on this hardware, so we simply skip it.
+      1:1  heartbeat byte array (byte 9 bit 7 = charging flag, bits 0-6 = battery %)
     """
 
+    # Status code reported by device when actively cleaning
+    _SWBOT_STATUS_CLEANING = 4
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._swbot_charging: bool | None = None
+
+    @property
+    def status(self) -> str:
+        """Return pool robot status: cleaning / charging / idle."""
+        if self._status_code == self._SWBOT_STATUS_CLEANING:
+            return "cleaning"
+        if self._swbot_charging:
+            return "charging"
+        return "idle"
+
+    def _decode_swbot_1_1(self, value: list[int]) -> None:
+        """Decode the 1:1 heartbeat byte array and update charging state.
+
+        byte 9 bit 7 (0x80) = charging flag; bits 0-6 = battery percentage.
+        """
+        if not isinstance(value, (list, tuple)) or len(value) <= 9:
+            return
+        byte9 = int(value[9])
+        charging = bool(byte9 & 0x80)
+        battery = byte9 & 0x7F
+        old_charging = self._swbot_charging
+        self._swbot_charging = charging
+        # Also update battery from heartbeat data if it looks valid (0-100)
+        if 0 <= battery <= 100:
+            old_battery = self._battery_percent
+            self._battery_percent = battery
+            if old_battery != battery:
+                self._notify_property_change(BATTERY_PROPERTY.name, battery)
+        if old_charging != charging:
+            # Charging state change affects the derived status string
+            self._notify_property_change(STATUS_PROPERTY.name, self._status_code)
+
     def _handle_mqtt_property_update(self, message: dict[str, Any]) -> bool:
-        """Handle MQTT property updates — only battery, status, and 1:1 are supported."""
+        """Handle MQTT property updates for the pool robot."""
         try:
             siid = message["siid"]
             piid = message["piid"]
@@ -2069,8 +2104,8 @@ class DreameSwbotDevice(DreameMowerDevice):
                 return True
 
             if PROPERTY_1_1.matches(siid, piid):
-                # Capability array pushed every ~60 s — route through shared handler for logging
-                return self._misc_handler.handle_property_update(siid, piid, message["value"], self._notify_property_change)
+                self._decode_swbot_1_1(message["value"])
+                return True
 
         except Exception as ex:
             _LOGGER.warning("DreameSwbotDevice: error handling property update: %s", ex)
