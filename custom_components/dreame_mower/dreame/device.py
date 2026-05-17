@@ -2059,6 +2059,27 @@ class DreameSwbotDevice(DreameMowerDevice):
             return "charging"
         return "idle"
 
+    async def fetch_device_info(self) -> dict[str, Any] | None:
+        """Fetch initial device state including charging flag from 1:1."""
+        result = await super().fetch_device_info()
+        # devices_list gives battery and status but not the charging flag.
+        # Read 1:1 via get_properties to populate _swbot_charging immediately.
+        try:
+            loop = asyncio.get_event_loop()
+            props = await loop.run_in_executor(
+                None,
+                lambda: self._cloud_device.get_properties(
+                    [{"siid": PROPERTY_1_1.siid, "piid": PROPERTY_1_1.piid}]
+                ),
+            )
+            if isinstance(props, list) and props:
+                entry = props[0]
+                if entry.get("code", -1) == 0:
+                    self._decode_swbot_1_1(entry["value"])
+        except Exception as ex:
+            _LOGGER.warning("DreameSwbotDevice: failed to fetch initial 1:1 state: %s", ex)
+        return result
+
     def _decode_swbot_1_1(self, value: list[int]) -> None:
         """Decode the 1:1 heartbeat byte array and update charging state.
 
