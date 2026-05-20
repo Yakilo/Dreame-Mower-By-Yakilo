@@ -81,6 +81,93 @@ data:
 5. Category: Integration
 6. Settings → Devices & Services → Add Integration → "Dreame Mower"
 
+## Example Automations
+
+The following is a real-world example showing how to integrate the mower with a motorized gate/cover and a rain sensor (via the [Netatmo integration](https://www.home-assistant.io/integrations/netatmo/)). Adjust entity IDs to match your setup.
+
+### Overview
+
+The setup consists of three parts:
+
+1. **Mowing script** — opens the gate, waits until it is fully open, then starts the mower and sends a notification.
+2. **Close-gate automation** — closes the gate automatically once the mower has docked.
+3. **Daily trigger automation** — fires at noon, skips mowing if it rained today (via Netatmo), otherwise runs the mowing script.
+
+### 1. Script: Start Mowing
+
+This script is called by the daily trigger automation. It opens the cover/gate first and only starts the mower once the gate is confirmed open.
+
+```yaml
+alias: "[Dreame] Start Mowing"
+sequence:
+  - action: cover.open_cover
+    target:
+      entity_id: cover.dreame_gate  # replace with your cover entity
+  - wait_for_trigger:
+      - trigger: state
+        entity_id: cover.dreame_gate
+        to: "open"
+    timeout: "00:01:00"
+  - if:
+      - condition: state
+        entity_id: cover.dreame_gate
+        state: "open"
+    then:
+      - action: lawn_mower.start_mowing
+        target:
+          entity_id: lawn_mower.a2  # replace with your mower entity
+      - action: notify.notify
+        data:
+          message: "Mower started"
+          title: "Dreame Mower"
+```
+
+### 2. Automation: Close Gate When Docked
+
+Closes the gate as soon as the mower transitions from *Mowing* or *Returning* to *Docked*.
+
+```yaml
+alias: "[Dreame] Close Gate"
+triggers:
+  - trigger: state
+    entity_id: lawn_mower.a2
+    from: mowing
+    to: docked
+  - trigger: state
+    entity_id: lawn_mower.a2
+    from: returning
+    to: docked
+actions:
+  - action: cover.close_cover
+    target:
+      entity_id: cover.dreame_gate
+```
+
+### 3. Automation: Daily Mowing Trigger (Rain Check)
+
+Fires every day at noon. Uses the Netatmo integration to check whether it has rained today. If no rain is detected, the mowing script is started. Otherwise a persistent notification is sent.
+
+```yaml
+alias: "[Dreame] Daily Mowing Trigger"
+triggers:
+  - trigger: time
+    at: "12:00:00"
+actions:
+  - if:
+      - condition: numeric_state
+        entity_id: sensor.netatmo_rainfall_today  # replace with your Netatmo rain sensor
+        below: 1
+    then:
+      - action: script.dreame_start_mowing
+    else:
+      - action: notify.persistent_notification
+        data:
+          title: "Dreame Mower"
+          message: "Mowing skipped — rain detected today."
+```
+
+> **Tip:** The daily trigger automation can be kept disabled and run on-demand via another automation or a dashboard button. The rain check prevents unnecessary mowing after wet weather.
+
 ## Community & Support
 
 - **Discussions**: Questions and ideas → [GitHub Discussions](https://github.com/antondaubert/dreame-mower/discussions)
