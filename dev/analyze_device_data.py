@@ -39,6 +39,8 @@ Data Types Analyzed:
 - OTA_INFO.*: 2 items with over-the-air update information
 """
 
+import argparse
+import getpass
 import json
 import logging
 import sys
@@ -59,9 +61,71 @@ from custom_components.dreame_mower.const import *
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
 
+ROOT_DIR = Path(__file__).parent.parent
+
+VALID_COUNTRIES = ["eu", "cn", "us", "ru", "sg"]
+VALID_ACCOUNT_TYPES = ["dreame", "mova"]
+
+
+def _prompt_country() -> str:
+    options = ", ".join(VALID_COUNTRIES)
+    while True:
+        val = input(f"Region [{options}] (default: eu): ").strip() or "eu"
+        if val in VALID_COUNTRIES:
+            return val
+        print(f"Invalid region. Choose one of: {options}")
+
+
+def _prompt_account_type() -> str:
+    options = ", ".join(VALID_ACCOUNT_TYPES)
+    while True:
+        val = input(f"Account type [{options}] (default: dreame): ").strip() or "dreame"
+        if val in VALID_ACCOUNT_TYPES:
+            return val
+        print(f"Invalid account type. Choose one of: {options}")
+
+
+def _load_creds_from_launch() -> Dict[str, str]:
+    launch_json_path = ROOT_DIR / ".vscode" / "launch.json"
+    with open(launch_json_path, "r", encoding="utf-8") as f:
+        raw = f.read()
+    raw = re.sub(r"//[^\n]*", "", raw)
+    launch_config = json.loads(raw)
+    configs = launch_config.get("configurations", [])
+    debug_config = next((c for c in configs if "CLI" in c.get("name", "")), configs[0] if configs else None)
+    if not debug_config:
+        raise RuntimeError("No configurations in launch.json")
+    args = debug_config.get("args", [])
+
+    def get_arg(flag: str, default: str = "") -> str:
+        return args[args.index(flag) + 1] if flag in args else default
+
+    username = get_arg("--username")
+    password = get_arg("--password")
+    device_id = get_arg("--device_id")
+    country = get_arg("--country", "eu") or "eu"
+    account_type = get_arg("--account_type", "dreame") or "dreame"
+    if not username or not password or not device_id:
+        raise RuntimeError("Missing required credentials in launch.json: --username --password --device_id")
+    return {"username": username, "password": password, "device_id": device_id, "country": country, "account_type": account_type}
+
+
+def _resolve_creds(args: argparse.Namespace) -> Dict[str, str]:
+    """Resolve credentials from launch.json or interactive prompts."""
+    if args.launch_json:
+        return _load_creds_from_launch()
+    username = args.username or input("Username (email): ")
+    password = getpass.getpass("Password: ")
+    device_id = args.device_id or input("Device ID (find with list_devices.py): ")
+    country = args.country or _prompt_country()
+    account_type = args.account_type or _prompt_account_type()
+    return {"username": username, "password": password, "device_id": device_id, "country": country, "account_type": account_type}
+
+
 class DeviceDataAnalyzer:
-    def __init__(self) -> None:
+    def __init__(self, creds: Dict[str, str]) -> None:
         self.protocol: Optional[DreameMowerCloudDevice] = None
+        self._creds = creds
 
     def decode_schedule_data(self, encoded_data: str) -> Union[Dict[str, Any], str]:
         """Decode base64 encoded schedule data."""
@@ -195,38 +259,16 @@ class DeviceDataAnalyzer:
             traceback.print_exc()
 
     def connect_to_device(self):
-        """Connect to Dreame cloud via DreameMowerCloudDevice using .vscode/launch.json creds."""
+        """Connect to Dreame cloud via DreameMowerCloudDevice."""
         logger.info("Connecting to cloud using DreameMowerCloudDevice…")
 
-        # Import credentials from launch.json (same as CLI debug)
-        try:
-            launch_json_path = Path(__file__).parent.parent / ".vscode" / "launch.json"
-            with open(launch_json_path, "r", encoding="utf-8") as f:
-                raw = f.read()
-            raw = re.sub(r"//[^\n]*", "", raw)
-            launch_config = json.loads(raw)
-            configs = launch_config["configurations"]
-            debug_config = next(c for c in configs if "CLI" in c.get("name", ""))
-            args = debug_config["args"]
-            
-            # Parse args for credentials
-            username = args[args.index("--username") + 1]
-            password = args[args.index("--password") + 1]
-            device_id = args[args.index("--device_id") + 1]
-            country = "eu"  # default
-                
-        except (FileNotFoundError, KeyError, StopIteration, IndexError) as ex:
-            logger.error("❌ Could not load credentials from .vscode/launch.json: %s", ex)
-            logger.error("Please ensure .vscode/launch.json exists with CLI configuration")
-            return False
-
-        # Initialize protocol and login
+        creds = self._creds
         self.protocol = DreameMowerCloudDevice(
-            username=username,
-            password=password,
-            country=country,
-            account_type="dreame",
-            device_id=device_id,
+            username=creds["username"],
+            password=creds["password"],
+            country=creds["country"],
+            account_type=creds["account_type"],
+            device_id=creds["device_id"],
         )
 
         logger.info("🔐 Connecting to Dreame cloud…")
@@ -966,9 +1008,28 @@ class DeviceDataAnalyzer:
                 except Exception as e:
                     logger.warning(f"Error during disconnect: {e}")
 
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Comprehensive Dreame mower device data analysis tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Credentials are prompted interactively by default.\n"
+               "Use --launch-json to load credentials from .vscode/launch.json instead.",
+    )
+    cred_group = p.add_mutually_exclusive_group()
+    cred_group.add_argument("--launch-json", action="store_true", help="Load credentials from .vscode/launch.json")
+    cred_group.add_argument("--username", default=None, metavar="EMAIL", help="Dreame account email (prompted if omitted)")
+    p.add_argument("--device-id", default=None, help="Dreame device ID (prompted if omitted; find with list_devices.py)")
+    p.add_argument("--country", default=None, choices=VALID_COUNTRIES, help=f"Region ({', '.join(VALID_COUNTRIES)}); default: eu")
+    p.add_argument("--account-type", default=None, choices=VALID_ACCOUNT_TYPES, help=f"Account type ({', '.join(VALID_ACCOUNT_TYPES)}); default: dreame")
+    return p.parse_args()
+
+
 def main():
-    analyzer = DeviceDataAnalyzer()
+    args = _parse_args()
+    creds = _resolve_creds(args)
+    analyzer = DeviceDataAnalyzer(creds)
     analyzer.run()
+
 
 if __name__ == "__main__":
     main()

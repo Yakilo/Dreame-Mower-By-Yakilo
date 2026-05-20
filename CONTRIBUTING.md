@@ -47,6 +47,24 @@ zip -r logs_capture.zip dev/logs/
 
 Attach `logs_capture.zip` as a file to the GitHub issue.
 
+### Alternative: one-shot device data snapshot
+
+Some issues (e.g. missing map features like circular or rotated zones) require a snapshot of the device's stored configuration rather than a live event trace. For those, use `analyze_device_data.py` instead of — or in addition to — the realtime monitor.
+
+```bash
+.venv/bin/python dev/analyze_device_data.py
+```
+
+It accepts the same credential options as the monitor:
+
+| Invocation | Credential source |
+|---|---|
+| `python dev/analyze_device_data.py` | Interactive prompts (default) |
+| `python dev/analyze_device_data.py --launch-json` | `.vscode/launch.json` (dev shortcut) |
+| `python dev/analyze_device_data.py --username you@example.com --device-id -123456789` | CLI flags (password still prompted securely) |
+
+The tool fetches the full batch device data (`MAP.*`, `FBD_NTYPE.*`, `SETTINGS.*`, `SCHEDULE.*`, `OTA_INFO.*`) and prints a detailed analysis. It also saves raw JSON to `dev/logs/device_data_<timestamp>.json`. Attach that file to the issue.
+
 ---
 
 That's it — thank you for helping!
