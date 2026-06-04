@@ -2046,6 +2046,12 @@ class DreameSwbotDevice(DreameMowerDevice):
     # Status code reported by device when actively cleaning
     _SWBOT_STATUS_CLEANING = 4
 
+    # Notification events reported by the pool robot (siid 20).
+    # eiid 1 = cleaning task finished, eiid 2 = low battery.
+    _SWBOT_EVENT_SIID = 20
+    _SWBOT_EVENT_CLEAN_FINISH = 1
+    _SWBOT_EVENT_LOW_BATTERY = 2
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._swbot_charging: bool | None = None
@@ -2122,6 +2128,16 @@ class DreameSwbotDevice(DreameMowerDevice):
                 self._status_code = status_code
                 if old_status_code != status_code:
                     self._notify_property_change(STATUS_PROPERTY.name, status_code)
+                    # The pool robot has no "cleaning started" event, so derive
+                    # one from the status transition into the cleaning state.
+                    if (status_code == self._SWBOT_STATUS_CLEANING
+                            and old_status_code != self._SWBOT_STATUS_CLEANING):
+                        self._notify_property_change(DEVICE_CODE_INFO_PROPERTY_NAME, {
+                            "code": "CLEAN_START",
+                            "name": "Cleaning Started",
+                            "description": "The robot has started a cleaning task",
+                            "timestamp": datetime.now().isoformat(),
+                        })
                 return True
 
             if PROPERTY_1_1.matches(siid, piid):
@@ -2132,3 +2148,43 @@ class DreameSwbotDevice(DreameMowerDevice):
             _LOGGER.warning("DreameSwbotDevice: error handling property update: %s", ex)
 
         return False
+
+    def _handle_mqtt_event(self, params: dict[str, Any]) -> bool:
+        """Handle MQTT event messages for the pool robot.
+
+        The pool robot does not expose a device code property; instead it
+        reports user-facing notifications as MiOT events on siid 20:
+          eiid 1 — cleaning task finished
+          eiid 2 — low battery
+        These are mapped onto the shared device-code notification pipeline so
+        they surface as Home Assistant notifications like other devices.
+        """
+        try:
+            # Event ids may arrive as ints or numeric strings; coerce defensively.
+            siid = int(params.get("siid"))
+            eiid = int(params.get("eiid"))
+        except (TypeError, ValueError):
+            siid = eiid = None
+
+        if siid == self._SWBOT_EVENT_SIID:
+            if eiid == self._SWBOT_EVENT_CLEAN_FINISH:
+                self._notify_property_change(DEVICE_CODE_INFO_PROPERTY_NAME, {
+                    "code": "CLEAN_FINISH",
+                    "name": "Cleaning Complete",
+                    "description": "The cleaning task has finished",
+                    "timestamp": datetime.now().isoformat(),
+                })
+                return True
+
+            if eiid == self._SWBOT_EVENT_LOW_BATTERY:
+                self._notify_property_change(DEVICE_CODE_WARNING_PROPERTY_NAME, {
+                    "code": "LOW_BATTERY",
+                    "name": "Low Battery",
+                    "description": "Battery is low, retrieve the robot and charge it",
+                    "timestamp": datetime.now().isoformat(),
+                })
+                return True
+
+        # Not a pool-robot notification event: fall back to the base handler
+        # (firmware validation, mission completion, etc.).
+        return super()._handle_mqtt_event(params)
