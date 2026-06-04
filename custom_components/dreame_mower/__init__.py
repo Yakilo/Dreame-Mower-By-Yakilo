@@ -8,13 +8,21 @@ will automatically route to its corresponding module (e.g., switch.py, button.py
 
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DATA_COORDINATOR, DATA_PLATFORMS, DOMAIN
+from .const import (
+    DATA_COORDINATOR,
+    DATA_FIRMWARE_POLL_UNSUB,
+    DATA_PLATFORMS,
+    DOMAIN,
+    FIRMWARE_POLL_INTERVAL_HOURS,
+)
 from .coordinator import DreameMowerCoordinator
 from .config_flow import DEVICE_TYPE_SWBOT
 
@@ -23,6 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 _MOWER_PLATFORMS = (
     Platform.LAWN_MOWER,
     Platform.SENSOR,
+    Platform.BINARY_SENSOR,
     Platform.CAMERA,
     Platform.SELECT,
     Platform.BUTTON,
@@ -64,12 +73,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.async_fetch_consumable_data()
         except Exception as ex:
             _LOGGER.warning("Initial consumable data fetch failed: %s", ex)
-    
+
     # Store coordinator in hass data
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+    entry_data: dict = {
         DATA_COORDINATOR: coordinator,
         DATA_PLATFORMS: platforms,
     }
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry_data
+
+    # Periodically poll for firmware update availability (mowers only). The value
+    # changes rarely and the device does not reliably push it, so poll on an interval.
+    if coordinator.device_type != DEVICE_TYPE_SWBOT:
+        async def _async_poll_firmware(now=None) -> None:
+            try:
+                await coordinator.async_fetch_firmware_status()
+            except Exception as ex:
+                _LOGGER.warning("Firmware status poll failed: %s", ex)
+
+        await _async_poll_firmware()
+        entry_data[DATA_FIRMWARE_POLL_UNSUB] = async_track_time_interval(
+            hass, _async_poll_firmware, timedelta(hours=FIRMWARE_POLL_INTERVAL_HOURS)
+        )
 
     # Set up all platforms for this device/entry.
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
@@ -80,8 +104,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     # Disconnect device before unloading
-    coordinator = hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR]
-    entry_platforms = hass.data[DOMAIN][entry.entry_id][DATA_PLATFORMS]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry_data[DATA_COORDINATOR]
+    entry_platforms = entry_data[DATA_PLATFORMS]
+
+    # Cancel the firmware poll timer if one was registered
+    firmware_poll_unsub = entry_data.get(DATA_FIRMWARE_POLL_UNSUB)
+    if firmware_poll_unsub is not None:
+        firmware_poll_unsub()
+
     await coordinator.async_disconnect_device()
     
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, entry_platforms):

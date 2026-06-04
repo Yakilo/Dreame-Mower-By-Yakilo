@@ -1644,7 +1644,87 @@ async def test_full_mission_lifecycle_workflow(device):
         }]
     }
     device._handle_message(progress_30)
-    
+
     # Should show actual progress, not capped
     assert device.mowing_progress_percent == 30.0
+
+
+def test_fetch_firmware_status_up_to_date(device):
+    """OTA_INFO [1, 0] means firmware is up to date (idle, no update)."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": "[1,0]"}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is True
+    assert device.firmware_install_state == 1
+
+
+def test_fetch_firmware_status_update_available(device):
+    """OTA_INFO state 2 means a new firmware update is available."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": "[2,0]"}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is True
+    assert device.firmware_install_state == 2
+
+
+def test_fetch_firmware_status_accepts_list_payload(device):
+    """OTA_INFO payload may arrive already decoded as a list."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": [3, 42]}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is True
+    assert device.firmware_install_state == 3
+
+
+def test_fetch_firmware_status_missing_key(device):
+    """A response without the OTA_INFO key should be a no-op failure."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"MAP.info": "2"}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is False
+    assert device.firmware_install_state is None
+
+
+def test_fetch_firmware_status_malformed_payload(device):
+    """A malformed OTA_INFO payload should fail gracefully without raising."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": "not-json"}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is False
+    assert device.firmware_install_state is None
+
+
+def test_fetch_firmware_status_rejects_unknown_state(device):
+    """An unrecognized install state must not overwrite a known one."""
+    device._cloud_device.set_connected_state(True)
+    device._firmware_install_state = 1  # previously-known good state
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": "[99,0]"}
+
+    result = asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert result is False
+    assert device.firmware_install_state == 1
+
+
+def test_fetch_firmware_status_notifies_on_change(device):
+    """A changed install state should fire a property-change callback."""
+    device._cloud_device.set_connected_state(True)
+    device._cloud_device.batch_device_datas_result = {"OTA_INFO.0": "[2,0]"}
+
+    notified: list[tuple[str, object]] = []
+    device.register_property_callback(lambda name, value: notified.append((name, value)))
+
+    asyncio.get_event_loop().run_until_complete(device.fetch_firmware_status())
+
+    assert ("firmware_install_state", 2) in notified
 

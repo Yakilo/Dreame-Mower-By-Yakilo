@@ -34,7 +34,12 @@ from .dreame.property import (
     NOTIFICATION_NAME_FIELD,
     NOTIFICATION_DESCRIPTION_FIELD,
 )
-from .dreame.const import POWER_STATE_PROPERTY, DeviceStatus, STATUS_PROPERTY
+from .dreame.const import (
+    FIRMWARE_INSTALL_STATE_NEW_AVAILABLE,
+    POWER_STATE_PROPERTY,
+    DeviceStatus,
+    STATUS_PROPERTY,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,6 +146,11 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def device_firmware(self) -> str:
         """Return device firmware version."""
         return self.device.firmware
+
+    @property
+    def device_update_available(self) -> bool:
+        """Return whether a firmware update is available."""
+        return self.device.firmware_install_state == FIRMWARE_INSTALL_STATE_NEW_AVAILABLE
 
     @property
     def device_manufacturer(self) -> str:
@@ -482,6 +492,10 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch CMS consumable counters from the device and cache them."""
         result = await self.device.get_consumable_status()
         self._consumable_values = result.get("values")
+
+    async def async_fetch_firmware_status(self) -> None:
+        """Fetch firmware update availability from the device."""
+        await self.device.fetch_firmware_status()
         data = await self._async_update_data()
         self.async_set_updated_data(data)
 

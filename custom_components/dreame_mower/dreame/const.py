@@ -175,12 +175,21 @@ CHARGING_STATUS_MAPPING: dict[int, str] = {
     16: "charging_paused_low_temperature",  # Charging paused: battery temperature too low (issue #40)
 }
 
+# Firmware install state values for FIRMWARE_INSTALL_STATE_PROPERTY
+FIRMWARE_INSTALL_STATE_NEW_AVAILABLE = 2
+
 # Firmware install state mapping for FIRMWARE_INSTALL_STATE_PROPERTY
 FIRMWARE_INSTALL_STATE_MAPPING: dict[int, str] = {
-    2: "new_firmware_available",
+    1: "up_to_date",  # Idle / firmware is current (no update available)
+    FIRMWARE_INSTALL_STATE_NEW_AVAILABLE: "new_firmware_available",
     3: "installing_firmware_after_download",
     4: "firmware_download_failed",  # Observed in issues #98, #134
 }
+
+# Device-data key holding the firmware/OTA record as a [install_state, download_progress]
+# array. Can be polled over REST (get_batch_device_datas) without waiting for the
+# device to push a property update over MQTT.
+OTA_INFO_DATA_KEY = "OTA_INFO.0"
 
 # Individual property names
 PROPERTY_FIRMWARE = "firmware"

@@ -125,6 +125,11 @@
         "name": "Stato di manutenzione"
       }
     },
+    "binary_sensor": {
+      "firmware_update_available": {
+        "name": "Aggiornamento firmware disponibile"
+      }
+    },
     "camera": {
       "map_camera": {
         "name": "Mappa"

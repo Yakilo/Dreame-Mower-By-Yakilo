@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable, Sequence
 from enum import Enum
+import json
 import logging
 import os
 from typing import Any, Callable
@@ -66,6 +67,7 @@ from .const import (
     CHARGING_STATUS_MAPPING,
     TASK_STATUS_PROPERTY,
     FIRMWARE_INSTALL_STATE_MAPPING,
+    OTA_INFO_DATA_KEY,
     SERVICE5_PROPERTY_100,
     SERVICE5_PROPERTY_101,
     SERVICE5_PROPERTY_105,
@@ -486,6 +488,55 @@ class DreameMowerDevice:
         except Exception as ex:
             _LOGGER.warning("Failed to fetch vector map from batch API: %s", ex)
             return False
+
+    async def fetch_firmware_status(self) -> bool:
+        """Fetch the firmware/OTA state from the OTA_INFO device-data record.
+
+        OTA_INFO holds a [install_state, download_progress] array, where
+        install_state follows FIRMWARE_INSTALL_STATE_MAPPING (1 = up to date,
+        2 = new firmware available, 3 = installing, 4 = download failed).
+        Polling this over REST surfaces update availability without having to
+        wait for the device to push a property change over MQTT.
+
+        Returns:
+            True if the firmware state was fetched and applied, False otherwise.
+        """
+        try:
+            batch_data = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._cloud_device.get_batch_device_datas([OTA_INFO_DATA_KEY]),
+            )
+        except Exception as ex:
+            _LOGGER.warning("Failed to fetch firmware status: %s", ex)
+            return False
+
+        if not batch_data or OTA_INFO_DATA_KEY not in batch_data:
+            _LOGGER.debug("No %s in batch data response", OTA_INFO_DATA_KEY)
+            return False
+
+        raw = batch_data[OTA_INFO_DATA_KEY]
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+            state = int(parsed[0])
+        except (ValueError, TypeError, IndexError, KeyError, json.JSONDecodeError) as ex:
+            _LOGGER.warning("Unexpected %s payload %r: %s", OTA_INFO_DATA_KEY, raw, ex)
+            return False
+
+        if state not in FIRMWARE_INSTALL_STATE_MAPPING:
+            # Match the MQTT handler: do not let an unrecognized value overwrite
+            # a previously-known state.
+            _LOGGER.warning("Unknown firmware installation state value: %s", state)
+            return False
+
+        if self._firmware_install_state != state:
+            self._firmware_install_state = state
+            self._notify_property_change(FIRMWARE_INSTALL_STATE_PROPERTY.name, state)
+            _LOGGER.debug(
+                "Firmware installation state (OTA_INFO): %s (%s)",
+                state,
+                FIRMWARE_INSTALL_STATE_MAPPING[state],
+            )
+        return True
 
     @property
     def device_id(self) -> str:
