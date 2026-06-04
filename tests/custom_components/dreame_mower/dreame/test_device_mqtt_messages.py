@@ -525,3 +525,85 @@ class TestDreameSwbotDeviceMqtt:
         # Fresh device has _swbot_charging=None and status_code=0
         assert pool_device._swbot_charging is None
         assert pool_device.status == "idle"
+
+    def test_pool_robot_event_clean_finish(self, pool_device):
+        """siid 20 / eiid 1 (CLEAN_FINISH) raises an info notification, not unhandled."""
+        notifications = []
+        pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
+
+        pool_device._handle_message({
+            "id": 200,
+            "method": "event_occured",
+            "params": {"siid": 20, "piid": 0, "eiid": 1, "arguments": []},
+        })
+
+        assert "unhandled_mqtt" not in [name for name, _ in notifications]
+        info = [v for name, v in notifications if name == "device_code_info"]
+        assert len(info) == 1
+        assert info[0]["code"] == "CLEAN_FINISH"
+
+    def test_pool_robot_event_low_battery(self, pool_device):
+        """siid 20 / eiid 2 (LOW_BATTERY) raises a warning notification."""
+        notifications = []
+        pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
+
+        pool_device._handle_message({
+            "id": 201,
+            "method": "event_occured",
+            "params": {"siid": 20, "piid": 0, "eiid": 2, "arguments": []},
+        })
+
+        warnings = [v for name, v in notifications if name == "device_code_warning"]
+        assert len(warnings) == 1
+        assert warnings[0]["code"] == "LOW_BATTERY"
+
+    def test_pool_robot_event_string_siid_eiid(self, pool_device):
+        """Event ids arriving as strings are coerced and still handled (defensive)."""
+        notifications = []
+        pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
+
+        pool_device._handle_message({
+            "id": 202,
+            "method": "event_occured",
+            "params": {"siid": "20", "piid": "0", "eiid": "1"},
+        })
+
+        assert any(name == "device_code_info" for name, _ in notifications)
+
+    def test_pool_robot_status_cleaning_raises_started(self, pool_device):
+        """A status transition into cleaning (4) derives a 'started' info notification."""
+        notifications = []
+        pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
+
+        pool_device._handle_message({
+            "id": 400,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 2, "value": 4}],
+        })
+
+        info = [v for name, v in notifications if name == "device_code_info"]
+        assert len(info) == 1
+        assert info[0]["code"] == "CLEAN_START"
+
+    def test_pool_robot_started_not_repeated_while_cleaning(self, pool_device):
+        """The 'started' notification only fires on entry to cleaning, not on later cleaning updates."""
+        notifications = []
+        pool_device.register_property_callback(lambda name, value: notifications.append((name, value)))
+
+        cleaning = {
+            "id": 401,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 2, "value": 4}],
+        }
+        idle = {
+            "id": 402,
+            "method": "properties_changed",
+            "params": [{"piid": 1, "siid": 2, "value": 1}],
+        }
+        pool_device._handle_message(cleaning)
+        pool_device._handle_message(cleaning)  # repeated, no transition
+        pool_device._handle_message(idle)
+        pool_device._handle_message(cleaning)  # re-entry, fires again
+
+        starts = [v for name, v in notifications if name == "device_code_info" and v["code"] == "CLEAN_START"]
+        assert len(starts) == 2
