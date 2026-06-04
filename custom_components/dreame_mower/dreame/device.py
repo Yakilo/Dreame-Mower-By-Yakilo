@@ -2159,11 +2159,13 @@ class DreameSwbotDevice(DreameMowerDevice):
         These are mapped onto the shared device-code notification pipeline so
         they surface as Home Assistant notifications like other devices.
         """
+        # Event ids may arrive as ints or numeric strings; coerce defensively.
+        siid: int | None
+        eiid: int | None
         try:
-            # Event ids may arrive as ints or numeric strings; coerce defensively.
-            siid = int(params.get("siid"))
-            eiid = int(params.get("eiid"))
-        except (TypeError, ValueError):
+            siid = int(params["siid"])
+            eiid = int(params["eiid"])
+        except (KeyError, TypeError, ValueError):
             siid = eiid = None
 
         if siid == self._SWBOT_EVENT_SIID:
