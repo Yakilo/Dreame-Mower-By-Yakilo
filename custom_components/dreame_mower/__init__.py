@@ -18,7 +18,6 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     DATA_COORDINATOR,
-    DATA_FIRMWARE_POLL_UNSUB,
     DATA_PLATFORMS,
     DOMAIN,
     FIRMWARE_POLL_INTERVAL_HOURS,
@@ -75,11 +74,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Initial consumable data fetch failed: %s", ex)
 
     # Store coordinator in hass data
-    entry_data: dict = {
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         DATA_COORDINATOR: coordinator,
         DATA_PLATFORMS: platforms,
     }
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry_data
 
     # Periodically poll for firmware update availability (mowers only). The value
     # changes rarely and the device does not reliably push it, so poll on an interval.
@@ -91,8 +89,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.warning("Firmware status poll failed: %s", ex)
 
         await _async_poll_firmware()
-        entry_data[DATA_FIRMWARE_POLL_UNSUB] = async_track_time_interval(
-            hass, _async_poll_firmware, timedelta(hours=FIRMWARE_POLL_INTERVAL_HOURS)
+        entry.async_on_unload(
+            async_track_time_interval(
+                hass,
+                _async_poll_firmware,
+                timedelta(hours=FIRMWARE_POLL_INTERVAL_HOURS),
+                cancel_on_shutdown=True,
+            )
         )
 
     # Set up all platforms for this device/entry.
@@ -107,12 +110,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_data = hass.data[DOMAIN][entry.entry_id]
     coordinator = entry_data[DATA_COORDINATOR]
     entry_platforms = entry_data[DATA_PLATFORMS]
-
-    # Cancel the firmware poll timer if one was registered
-    firmware_poll_unsub = entry_data.get(DATA_FIRMWARE_POLL_UNSUB)
-    if firmware_poll_unsub is not None:
-        firmware_poll_unsub()
-
     await coordinator.async_disconnect_device()
     
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, entry_platforms):

@@ -15,7 +15,6 @@ CONF_MAP_PADDING: Final = "map_padding"
 # Data storage keys
 DATA_COORDINATOR = "coordinator"
 DATA_PLATFORMS = "platforms"
-DATA_FIRMWARE_POLL_UNSUB = "firmware_poll_unsub"
 
 # How often to poll the cloud for firmware update availability.
 FIRMWARE_POLL_INTERVAL_HOURS = 24
