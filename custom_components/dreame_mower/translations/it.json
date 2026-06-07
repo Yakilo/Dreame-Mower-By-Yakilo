@@ -113,7 +113,17 @@
         "name": "Codice del dispositivo"
       },
       "current_task": {
-        "name": "Attività attuale"
+        "name": "Attività attuale",
+        "state": {
+          "idle": "Nessuna attività",
+          "starting": "Avvio",
+          "mowing": "Falciatura",
+          "paused": "In pausa",
+          "finished": "Completata",
+          "failed": "Fallita",
+          "exit": "Arrestata",
+          "returning_to_dock": "Ritorno alla stazione"
+        }
       },
       "consumable_blade_health": {
         "name": "Stato delle lame"

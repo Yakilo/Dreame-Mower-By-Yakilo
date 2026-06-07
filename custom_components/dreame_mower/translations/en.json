@@ -113,7 +113,17 @@
         "name": "Device code"
       },
       "current_task": {
-        "name": "Current task"
+        "name": "Current task",
+        "state": {
+          "idle": "No task",
+          "starting": "Starting",
+          "mowing": "Mowing",
+          "paused": "Paused",
+          "finished": "Finished",
+          "failed": "Failed",
+          "exit": "Stopped",
+          "returning_to_dock": "Returning to dock"
+        }
       },
       "consumable_blade_health": {
         "name": "Blade Health"

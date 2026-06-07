@@ -113,7 +113,17 @@
         "name": "Код устройства"
       },
       "current_task": {
-        "name": "Текущая задача"
+        "name": "Текущая задача",
+        "state": {
+          "idle": "Нет задачи",
+          "starting": "Запуск",
+          "mowing": "Кошение",
+          "paused": "Приостановлено",
+          "finished": "Завершено",
+          "failed": "Ошибка",
+          "exit": "Остановлено",
+          "returning_to_dock": "Возвращение на станцию"
+        }
       },
       "consumable_blade_health": {
         "name": "Состояние ножей"

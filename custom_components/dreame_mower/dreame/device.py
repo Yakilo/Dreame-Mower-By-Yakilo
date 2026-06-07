@@ -239,6 +239,16 @@ class DreameMowerDevice:
         return self._misc_handler.has_unfinished_task
 
     @property
+    def task_status(self) -> str | None:
+        """Return the current mowing task status decoded from the heartbeat."""
+        return self._misc_handler.task_status
+
+    @property
+    def mowing_session_active(self) -> bool:
+        """Return True while a mowing session is in progress (used by the live map)."""
+        return self._misc_handler.mowing_session_active
+
+    @property
     def bluetooth_connected(self) -> bool | None:
         """Return Bluetooth connection status."""
         return self._bluetooth_connected

@@ -103,6 +103,7 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "bluetooth_connected": self.device_bluetooth_connected,
             "charging_status": self.device_charging_status,
             "current_task_data": self.current_task_data,
+            "task_status": self.device_task_status,
             "mowing_progress_percent": self.mowing_progress_percent,
             "current_area_sqm": self.current_area_sqm,
             "total_area_sqm": self.total_area_sqm,
@@ -191,6 +192,11 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def current_task_data(self) -> dict | None:
         """Return current task data from TaskHandler."""
         return self.device.current_task_data
+
+    @property
+    def device_task_status(self) -> str | None:
+        """Return the current mowing task status decoded from the heartbeat."""
+        return self.device.task_status
 
     @property
     def device_code(self) -> int | None:

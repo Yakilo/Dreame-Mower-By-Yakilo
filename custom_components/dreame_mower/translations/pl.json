@@ -113,7 +113,17 @@
         "name": "Kod urządzenia"
       },
       "current_task": {
-        "name": "Obecne zadanie"
+        "name": "Obecne zadanie",
+        "state": {
+          "idle": "Brak zadania",
+          "starting": "Uruchamianie",
+          "mowing": "Koszenie",
+          "paused": "Wstrzymane",
+          "finished": "Zakończone",
+          "failed": "Niepowodzenie",
+          "exit": "Zatrzymane",
+          "returning_to_dock": "Powrót do stacji"
+        }
       },
       "consumable_blade_health": {
         "name": "Stan ostrzy"

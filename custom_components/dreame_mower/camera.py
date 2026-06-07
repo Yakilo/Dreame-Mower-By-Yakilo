@@ -8,7 +8,6 @@ from typing import Any
 from threading import Timer
 
 from homeassistant.components.camera import Camera, CameraEntityFeature
-from homeassistant.components.lawn_mower import LawnMowerActivity  # type: ignore[attr-defined]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -17,8 +16,9 @@ from .const import DATA_COORDINATOR, DOMAIN, CONF_MAP_ROTATION, CONF_MAP_SHOW_TI
 from .coordinator import DreameMowerCoordinator
 from .entity import DreameMowerEntity
 
-from .dreame.const import STATUS_PROPERTY, map_status_to_activity, POSE_COVERAGE_PROPERTY
+from .dreame.const import POSE_COVERAGE_PROPERTY
 from .dreame.property.pose_coverage import POSE_COVERAGE_COORDINATES_PROPERTY_NAME
+from .dreame.property.property_misc import PROPERTY_1_1_TASK_STATUS_NAME
 from .dreame.map_data_parser import vector_map_to_map_data
 from .dreame.svg_map_generator import generate_svg_map_image
 
@@ -68,8 +68,10 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
         self._pose_coverage_timer: Timer | None = None
         self._timer_interval = POSE_COVERAGE_REQUEST_INTERVAL
 
-        # Initial docked state based on current status        
-        self._docked = map_status_to_activity(coordinator.device.status_code) == LawnMowerActivity.DOCKED
+        # Live mode follows the mowing task lifecycle (heartbeat task status),
+        # not the physical dock/charge state — so a task paused at the dock keeps
+        # the live map running. None until the first heartbeat arrives.
+        self._session_active = coordinator.device.mowing_session_active
         
         # Historical files cache
         self._historical_files_cache: list[tuple[str, float]] = []  # [(file_path, mtime), ...]
@@ -92,8 +94,8 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
         # or fall back to batch API vector map
         self.hass.create_task(self._async_initial_image_load())
 
-        # If not docked, request initial pose coverage property and start timer
-        if not self._docked:
+        # If a mowing session is active, request initial pose coverage and start timer
+        if self._session_active:
             await self._request_pose_coverage_property()
             self._start_pose_coverage_timer()
         
@@ -225,8 +227,8 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
             # Schedule the async property request as a task
             self.hass.create_task(self._request_pose_coverage_property())
             
-            # Schedule next request if still in live mode (not docked)
-            if not self._docked:
+            # Schedule next request while the mowing session is still active
+            if self._session_active:
                 self._start_pose_coverage_timer()
         except Exception as ex:
             _LOGGER.error("Error in pose coverage timer callback: %s", ex)
@@ -291,10 +293,10 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
 
     def _handle_property_change(self, property_name: str, value: Any) -> None:
         """Handle property changes from the device."""
-        # If device is reachable and we are in live mode but timer is stopped, restart it
-        # This handles recovery from offline state
+        # If device is reachable and a session is active but the timer is stopped,
+        # restart it. This handles recovery from an offline state.
         if (self.coordinator.device.device_reachable and
-            not self._docked and
+            self._session_active and
             self._pose_coverage_timer is None):
             _LOGGER.info("Device is back online, resuming pose coverage requests")
             self._start_pose_coverage_timer()
@@ -305,18 +307,20 @@ class DreameMowerCameraEntity(DreameMowerEntity, Camera):
                 self.hass.create_task(self._async_update_vector_map_image())
         elif property_name == POSE_COVERAGE_COORDINATES_PROPERTY_NAME:
             self._handle_live_coordinates_update(value)
-        elif property_name == STATUS_PROPERTY.name:
-            new_state = map_status_to_activity(value) == LawnMowerActivity.DOCKED
-            if new_state != self._docked:
-                self._docked = new_state
-                if self._docked:
-                    # Exiting live mode when docked - stop timer and clear coordinates
+        elif property_name == PROPERTY_1_1_TASK_STATUS_NAME:
+            # Live map follows the task lifecycle: it runs while a session is
+            # active (incl. paused at the dock) and ends only at exit/idle.
+            new_state = self.coordinator.device.mowing_session_active
+            if new_state != self._session_active:
+                self._session_active = new_state
+                if new_state:
+                    # Session started or resumed — enter live mode.
+                    self._start_pose_coverage_timer()
+                else:
+                    # Session ended — stop timer, clear coordinates, show static map.
                     self._stop_pose_coverage_timer()
                     self._live_coordinates.clear()
                     self.hass.create_task(self._async_update_image(force_refresh=True))
-                else:
-                    # Entering live mode when undocked - start timer
-                    self._start_pose_coverage_timer()
 
     def _handle_live_coordinates_update(self, coordinates_data: dict[str, Any]) -> None:
         """Handle live coordinate updates during mowing session.

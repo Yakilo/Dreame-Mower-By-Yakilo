@@ -14,9 +14,41 @@ from ..const import PROPERTY_1_1, SETTINGS_CHANGE_PROPERTY
 
 # Heartbeat (prop 1:1) decoded constants
 _MAIN_STATE_MOWING = 4
-TASK_STATUS_PAUSED = 36  # raw subState when mowing task is paused
-TASK_STATUS_DOCK = 40    # raw subState when mowing task is interrupted by return-to-dock
 PROPERTY_1_1_UNFINISHED_TASK_NAME = "property_1_1_has_unfinished_task"
+PROPERTY_1_1_TASK_STATUS_NAME = "property_1_1_task_status"
+
+# Mowing task status decoded from the heartbeat byte 13 (subState). The raw byte
+# encodes the task status as (subState - base); the resulting index maps to the
+# task-status enum below. The status is only meaningful while the main state is
+# "mowing"; in any other main state there is no active mowing task ("idle").
+#
+# "returning_to_dock" is a transient state the robot passes through while driving
+# back to the dock — both after completing a run (finished → returning_to_dock →
+# exit → idle) and after an interruption (mowing → returning_to_dock → paused).
+# An interrupted task comes to rest at "paused", which is the resumable state.
+_TASK_STATUS_SUBSTATE_BASE = 33
+_TASK_STATUS_BY_INDEX: dict[int, str] = {
+    0: "idle",
+    1: "starting",
+    2: "mowing",
+    3: "paused",
+    4: "finished",
+    5: "failed",
+    6: "exit",
+    7: "returning_to_dock",
+}
+# Ordered tuple of every possible task-status value, for sensor enum options.
+TASK_STATUS_OPTIONS: tuple[str, ...] = tuple(_TASK_STATUS_BY_INDEX.values())
+# Task status from which a paused/interrupted mowing task can be resumed. Only the
+# resting "paused" state qualifies; "returning_to_dock" is transient and also
+# occurs on the normal post-completion drive home, so it is not resumable.
+_RESUMABLE_TASK_STATUSES = frozenset({"paused"})
+
+# Task statuses that mean no mowing session is in progress. Every other decoded
+# status (starting/mowing/paused/finished/failed/returning_to_dock) means a
+# session is active and the live map should keep running — including while the
+# task is paused at the dock. The session only ends at "exit"/"idle".
+_INACTIVE_TASK_STATUSES = frozenset({"idle", "exit"})
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +66,7 @@ class Property11Handler:
         """Initialize property handler."""
         self._last_value: list[int] | None = None
         self._has_unfinished_task: bool = False
+        self._task_status: str | None = None
 
     def parse_value(self, value: list[int], notify_callback: Callable[[str, Any], None] | None = None) -> bool:
         """Parse and log property 1:1 value."""
@@ -53,7 +86,7 @@ class Property11Handler:
                     "Property 1:1 received - raw_battery: %d, main_state: %d, sub_state: %d",
                     raw_battery, main_state, sub_state,
                 )
-                self._update_unfinished_task(main_state, sub_state, notify_callback)
+                self._update_task_status(main_state, sub_state, notify_callback)
             elif len(value) == 24:
                 # 24-byte variant seen on mova.mower.g2405c firmware 4.3.6_0062 (issue #18)
                 _LOGGER.debug("Property 1:1 received (24-byte variant): %s", value)
@@ -70,26 +103,47 @@ class Property11Handler:
             _LOGGER.error("Failed to parse property 1:1: %s", ex)
             return False
 
-    def _update_unfinished_task(
+    def _update_task_status(
         self,
         main_state: int,
         sub_state: int,
         notify_callback: Callable[[str, Any], None] | None,
     ) -> None:
-        """Update has_unfinished_task flag and notify if it changed."""
+        """Update the decoded task status and derived resumable flag, notifying on change."""
         if main_state == _MAIN_STATE_MOWING:
-            new_value = sub_state in (TASK_STATUS_PAUSED, TASK_STATUS_DOCK)
+            status = _TASK_STATUS_BY_INDEX.get(sub_state - _TASK_STATUS_SUBSTATE_BASE)
         else:
-            new_value = False
-        if new_value != self._has_unfinished_task:
-            self._has_unfinished_task = new_value
+            # No mowing task in progress in any other main state.
+            status = "idle"
+        if status != self._task_status:
+            self._task_status = status
             if notify_callback is not None:
-                notify_callback(PROPERTY_1_1_UNFINISHED_TASK_NAME, new_value)
+                notify_callback(PROPERTY_1_1_TASK_STATUS_NAME, status)
+
+        # has_unfinished_task is derived from the same decoded status.
+        has_unfinished = status in _RESUMABLE_TASK_STATUSES
+        if has_unfinished != self._has_unfinished_task:
+            self._has_unfinished_task = has_unfinished
+            if notify_callback is not None:
+                notify_callback(PROPERTY_1_1_UNFINISHED_TASK_NAME, has_unfinished)
 
     @property
     def has_unfinished_task(self) -> bool:
         """Return True when a paused or dock-interrupted mowing task can be resumed."""
         return self._has_unfinished_task
+
+    @property
+    def task_status(self) -> str | None:
+        """Return the decoded mowing task status (None until a heartbeat is seen)."""
+        return self._task_status
+
+    @property
+    def mowing_session_active(self) -> bool:
+        """Return True while a mowing session is in progress (drives the live map)."""
+        return (
+            self._task_status is not None
+            and self._task_status not in _INACTIVE_TASK_STATUSES
+        )
 
     @property
     def last_value(self) -> list[int] | None:
@@ -149,6 +203,16 @@ class MiscPropertyHandler:
     def has_unfinished_task(self) -> bool:
         """Return True when a paused or dock-interrupted mowing task can be resumed."""
         return self._property_1_1_handler.has_unfinished_task
+
+    @property
+    def task_status(self) -> str | None:
+        """Return the decoded mowing task status from the heartbeat."""
+        return self._property_1_1_handler.task_status
+
+    @property
+    def mowing_session_active(self) -> bool:
+        """Return True while a mowing session is in progress."""
+        return self._property_1_1_handler.mowing_session_active
 
     def handle_property_update(self, siid: int, piid: int, value: Any, notify_callback: Callable[[str, Any], None]) -> bool:
         """Handle miscellaneous property updates."""

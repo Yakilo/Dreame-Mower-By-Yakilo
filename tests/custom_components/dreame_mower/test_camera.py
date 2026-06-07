@@ -6,12 +6,12 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from homeassistant.components.lawn_mower import LawnMowerActivity
 
 from custom_components.dreame_mower.camera import DreameMowerCameraEntity
 from custom_components.dreame_mower.coordinator import DreameMowerCoordinator
-from custom_components.dreame_mower.dreame.const import POSE_COVERAGE_PROPERTY, STATUS_PROPERTY
+from custom_components.dreame_mower.dreame.const import POSE_COVERAGE_PROPERTY
 from custom_components.dreame_mower.dreame.property.pose_coverage import POSE_COVERAGE_COORDINATES_PROPERTY_NAME
+from custom_components.dreame_mower.dreame.property.property_misc import PROPERTY_1_1_TASK_STATUS_NAME
 
 
 # Path to test data
@@ -29,6 +29,8 @@ def mock_coordinator():
     coordinator.device = Mock()
     coordinator.device.name = "Test Mower"
     coordinator.device.status_code = 1  # Some default status
+    coordinator.device.task_status = None
+    coordinator.device.mowing_session_active = False
     coordinator.device.register_property_callback = Mock()
     coordinator.device.mower_coordinates = None  # No current position by default
     coordinator.device.cloud_device = Mock()
@@ -184,24 +186,24 @@ class TestDreameMowerCameraEntity:
 
     def test_handle_property_change_resumes_polling(self, camera_entity, mock_coordinator):
         """Test that property change resumes polling if device becomes reachable."""
-        # Setup state: device reachable, undocked, but timer stopped (e.g. after offline)
+        # Setup state: device reachable, session active, but timer stopped (e.g. after offline)
         mock_coordinator.device.device_reachable = True
-        camera_entity._docked = False
+        camera_entity._session_active = True
         camera_entity._pose_coverage_timer = None
-        
+
         with patch.object(camera_entity, "_start_pose_coverage_timer") as mock_start:
             # Trigger property change
             camera_entity._handle_property_change("some_property", "value")
-            
+
             # Verify timer started
             mock_start.assert_called_once()
 
-    def test_handle_property_change_does_not_resume_if_docked(self, camera_entity, mock_coordinator):
-        """Test that polling does not resume if device is docked."""
+    def test_handle_property_change_does_not_resume_if_session_inactive(self, camera_entity, mock_coordinator):
+        """Test that polling does not resume when no mowing session is active."""
         mock_coordinator.device.device_reachable = True
-        camera_entity._docked = True
+        camera_entity._session_active = False
         camera_entity._pose_coverage_timer = None
-        
+
         with patch.object(camera_entity, "_start_pose_coverage_timer") as mock_start:
             camera_entity._handle_property_change("some_property", "value")
             mock_start.assert_not_called()
@@ -209,9 +211,52 @@ class TestDreameMowerCameraEntity:
     def test_handle_property_change_does_not_resume_if_unreachable(self, camera_entity, mock_coordinator):
         """Test that polling does not resume if device is still unreachable."""
         mock_coordinator.device.device_reachable = False
-        camera_entity._docked = False
+        camera_entity._session_active = True
         camera_entity._pose_coverage_timer = None
-        
+
         with patch.object(camera_entity, "_start_pose_coverage_timer") as mock_start:
             camera_entity._handle_property_change("some_property", "value")
             mock_start.assert_not_called()
+
+    def test_task_status_change_enters_live_mode(self, camera_entity, mock_coordinator):
+        """A task-status change to an active session enters live mode and starts polling."""
+        camera_entity._session_active = False
+        mock_coordinator.device.mowing_session_active = True
+
+        with patch.object(camera_entity, "_start_pose_coverage_timer") as mock_start, \
+             patch.object(camera_entity, "_stop_pose_coverage_timer") as mock_stop:
+            camera_entity._handle_property_change(PROPERTY_1_1_TASK_STATUS_NAME, "mowing")
+
+        assert camera_entity._session_active is True
+        mock_start.assert_called_once()
+        mock_stop.assert_not_called()
+
+    def test_task_status_change_ends_live_mode(self, camera_entity, mock_coordinator):
+        """A task-status change to exit/idle ends live mode and clears live coordinates."""
+        camera_entity._session_active = True
+        camera_entity._live_coordinates = [[1, 2], [3, 4]]
+        camera_entity.hass = Mock()
+        mock_coordinator.device.mowing_session_active = False
+
+        with patch.object(camera_entity, "_stop_pose_coverage_timer") as mock_stop, \
+             patch.object(camera_entity, "_async_update_image") as mock_update:
+            camera_entity._handle_property_change(PROPERTY_1_1_TASK_STATUS_NAME, "exit")
+
+        assert camera_entity._session_active is False
+        assert camera_entity._live_coordinates == []
+        mock_stop.assert_called_once()
+        camera_entity.hass.create_task.assert_called_once()
+        mock_update.assert_called_once_with(force_refresh=True)
+
+    def test_task_status_paused_keeps_live_mode(self, camera_entity, mock_coordinator):
+        """A task that pauses at the dock stays in live mode (no teardown)."""
+        camera_entity._session_active = True
+        camera_entity._live_coordinates = [[1, 2]]
+        mock_coordinator.device.mowing_session_active = True  # paused → still active
+
+        with patch.object(camera_entity, "_stop_pose_coverage_timer") as mock_stop:
+            camera_entity._handle_property_change(PROPERTY_1_1_TASK_STATUS_NAME, "paused")
+
+        assert camera_entity._session_active is True
+        assert camera_entity._live_coordinates == [[1, 2]]
+        mock_stop.assert_not_called()

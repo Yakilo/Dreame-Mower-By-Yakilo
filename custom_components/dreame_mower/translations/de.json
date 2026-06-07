@@ -113,7 +113,17 @@
         "name": "Gerätecode"
       },
       "current_task": {
-        "name": "Aktuelle Aufgabe"
+        "name": "Aktuelle Aufgabe",
+        "state": {
+          "idle": "Keine Aufgabe",
+          "starting": "Startet",
+          "mowing": "Mähen",
+          "paused": "Pausiert",
+          "finished": "Abgeschlossen",
+          "failed": "Fehlgeschlagen",
+          "exit": "Gestoppt",
+          "returning_to_dock": "Rückkehr zur Station"
+        }
       },
       "consumable_blade_health": {
         "name": "Klingenverschleiß"

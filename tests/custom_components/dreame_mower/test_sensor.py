@@ -44,6 +44,7 @@ def mock_coordinator():
     coordinator.device_code_name = "No error"
     coordinator.device_code_description = "OK"
     coordinator.current_task_data = None
+    coordinator.device_task_status = None
     coordinator.device_status_code = DeviceStatus.CHARGING_COMPLETE
     coordinator.mowing_progress_percent = None
     coordinator.current_area_sqm = None
@@ -200,34 +201,56 @@ async def test_device_code_sensor_warning_icon(mock_coordinator):
     assert sensor.extra_state_attributes["type"] == "warning"
 
 
-async def test_task_sensor_active(mock_coordinator):
-    """Test task sensor returns Active when task and execution are active."""
-    mock_coordinator.current_task_data = {"task_active": True, "execution_active": True}
-    mock_coordinator.device_status_code = DeviceStatus.MOWING
+async def test_task_sensor_mowing(mock_coordinator):
+    """Test task sensor reflects the heartbeat-decoded task status."""
+    mock_coordinator.device_task_status = "mowing"
     sensor = DreameMowerTaskSensor(mock_coordinator)
-    assert sensor.native_value == "Active"
+    assert sensor.native_value == "mowing"
 
 
 async def test_task_sensor_paused(mock_coordinator):
-    """Test task sensor returns Paused when task active but execution not."""
-    mock_coordinator.current_task_data = {"task_active": True, "execution_active": False}
+    """Test task sensor returns paused when the heartbeat reports a paused task."""
+    mock_coordinator.device_task_status = "paused"
     sensor = DreameMowerTaskSensor(mock_coordinator)
-    assert sensor.native_value == "Paused"
+    assert sensor.native_value == "paused"
 
 
-async def test_task_sensor_recharging(mock_coordinator):
-    """Test task sensor returns Recharging when mower is charging mid-task."""
-    mock_coordinator.current_task_data = {"task_active": True, "execution_active": True}
-    mock_coordinator.device_status_code = DeviceStatus.CHARGING
+async def test_task_sensor_returning_to_dock(mock_coordinator):
+    """Test task sensor surfaces the transient return-to-dock status."""
+    mock_coordinator.device_task_status = "returning_to_dock"
     sensor = DreameMowerTaskSensor(mock_coordinator)
-    assert sensor.native_value == "Recharging"
+    assert sensor.native_value == "returning_to_dock"
 
 
-async def test_task_sensor_inactive(mock_coordinator):
-    """Test task sensor returns Inactive when no task data."""
-    mock_coordinator.current_task_data = {}
+async def test_task_sensor_unknown(mock_coordinator):
+    """Test task sensor returns None until a heartbeat is decoded."""
+    mock_coordinator.device_task_status = None
     sensor = DreameMowerTaskSensor(mock_coordinator)
     assert sensor.native_value is None
+
+
+async def test_task_sensor_attributes(mock_coordinator):
+    """Test task sensor exposes the task descriptor details as attributes."""
+    mock_coordinator.current_task_data = {
+        "type": "TASK",
+        "coverage_target": 1,
+        "area_id": [3],
+        "region_id": [1, 2],
+        "elapsed_time": 120,
+    }
+    sensor = DreameMowerTaskSensor(mock_coordinator)
+    attrs = sensor.extra_state_attributes
+    assert attrs["task_type"] == "TASK"
+    assert attrs["coverage_target"] == 1
+    assert attrs["region_id"] == [1, 2]
+    assert attrs["elapsed_time"] == 120
+
+
+async def test_task_sensor_attributes_empty_without_descriptor(mock_coordinator):
+    """Test task sensor reports no attributes when no descriptor is cached."""
+    mock_coordinator.current_task_data = None
+    sensor = DreameMowerTaskSensor(mock_coordinator)
+    assert sensor.extra_state_attributes == {}
 
 
 async def test_progress_sensor_value(mock_coordinator):

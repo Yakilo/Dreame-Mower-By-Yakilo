@@ -113,7 +113,17 @@
         "name": "Code de périphérique"
       },
       "current_task": {
-        "name": "Tâche actuelle"
+        "name": "Tâche actuelle",
+        "state": {
+          "idle": "Aucune tâche",
+          "starting": "Démarrage",
+          "mowing": "En tonte",
+          "paused": "En pause",
+          "finished": "Terminée",
+          "failed": "Échouée",
+          "exit": "Arrêtée",
+          "returning_to_dock": "Retour à la station"
+        }
       },
       "consumable_blade_health": {
         "name": "État des lames"

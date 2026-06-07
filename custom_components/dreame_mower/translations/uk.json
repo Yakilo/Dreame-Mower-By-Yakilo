@@ -113,7 +113,17 @@
         "name": "Код пристрою"
       },
       "current_task": {
-        "name": "Поточне завдання"
+        "name": "Поточне завдання",
+        "state": {
+          "idle": "Немає завдання",
+          "starting": "Запуск",
+          "mowing": "Скошування",
+          "paused": "Призупинено",
+          "finished": "Завершено",
+          "failed": "Помилка",
+          "exit": "Зупинено",
+          "returning_to_dock": "Повернення на станцію"
+        }
       },
       "consumable_blade_health": {
         "name": "Стан ножів"

@@ -8,9 +8,18 @@ from custom_components.dreame_mower.dreame.property.property_misc import (
     SettingsChangeHandler,
     MiscPropertyHandler,
     PROPERTY_1_1_UNFINISHED_TASK_NAME,
-    TASK_STATUS_PAUSED,
-    TASK_STATUS_DOCK,
+    PROPERTY_1_1_TASK_STATUS_NAME,
+    TASK_STATUS_OPTIONS,
 )
+
+# Raw heartbeat subState bytes (byte 13) for relevant task statuses.
+_SUB_PAUSED = 36  # → "paused" (resting, resumable)
+_SUB_DOCK = 40    # → "returning_to_dock" (transient)
+
+
+def _unfinished_calls(notify):
+    """Return only the has_unfinished_task notifications from a mock notify."""
+    return [c for c in notify.call_args_list if c.args[0] == PROPERTY_1_1_UNFINISHED_TASK_NAME]
 
 
 def _heartbeat(main_state_byte: int = 0, sub_state: int = 0) -> list[int]:
@@ -142,17 +151,18 @@ class TestProperty11Handler:
         """mainState=MOWING, taskStatus=PAUSED → has_unfinished_task True."""
         handler = Property11Handler()
         notify = MagicMock()
-        handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED), notify)
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED), notify)
         assert handler.has_unfinished_task is True
-        notify.assert_called_once_with(PROPERTY_1_1_UNFINISHED_TASK_NAME, True)
+        notify.assert_any_call(PROPERTY_1_1_UNFINISHED_TASK_NAME, True)
 
-    def test_has_unfinished_task_mowing_docked(self):
-        """mainState=MOWING, taskStatus=DOCK → has_unfinished_task True."""
+    def test_has_unfinished_task_returning_to_dock_is_false(self):
+        """returning_to_dock is transient (also on post-completion drive home) → not resumable."""
         handler = Property11Handler()
         notify = MagicMock()
-        handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_DOCK), notify)
-        assert handler.has_unfinished_task is True
-        notify.assert_called_once_with(PROPERTY_1_1_UNFINISHED_TASK_NAME, True)
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_DOCK), notify)
+        assert handler.task_status == "returning_to_dock"
+        assert handler.has_unfinished_task is False
+        assert _unfinished_calls(notify) == []
 
     def test_has_unfinished_task_mowing_working_is_false(self):
         """mainState=MOWING, taskStatus=WORKING → has_unfinished_task False (normal mowing)."""
@@ -160,35 +170,107 @@ class TestProperty11Handler:
         notify = MagicMock()
         handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_WORKING), notify)
         assert handler.has_unfinished_task is False
-        notify.assert_not_called()
+        assert _unfinished_calls(notify) == []
 
     def test_has_unfinished_task_cleared_when_idle(self):
         """After going to IDLE the flag is cleared and notify fires."""
         handler = Property11Handler()
         notify = MagicMock()
-        handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED), notify)
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED), notify)
         assert handler.has_unfinished_task is True
 
         handler.parse_value(_heartbeat(_IDLE_BYTE, 0), notify)
         assert handler.has_unfinished_task is False
-        assert notify.call_count == 2
-        notify.assert_called_with(PROPERTY_1_1_UNFINISHED_TASK_NAME, False)
+        assert len(_unfinished_calls(notify)) == 2
+        notify.assert_any_call(PROPERTY_1_1_UNFINISHED_TASK_NAME, False)
 
     def test_notify_not_called_when_flag_unchanged(self):
         """Notify is not emitted when has_unfinished_task doesn't change."""
         handler = Property11Handler()
         notify = MagicMock()
-        handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED), notify)
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED), notify)
         notify.reset_mock()
         # Same state again
-        handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED), notify)
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED), notify)
         notify.assert_not_called()
 
     def test_notify_optional(self):
         """parse_value with no notify_callback does not raise."""
         handler = Property11Handler()
-        assert handler.parse_value(_heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED)) is True
+        assert handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED)) is True
         assert handler.has_unfinished_task is True
+
+    def test_task_status_initially_none(self):
+        """task_status is None until a heartbeat is decoded."""
+        assert Property11Handler().task_status is None
+
+    @pytest.mark.parametrize(
+        "sub_state, expected",
+        [
+            (33, "idle"),
+            (34, "starting"),
+            (35, "mowing"),
+            (_SUB_PAUSED, "paused"),
+            (37, "finished"),
+            (38, "failed"),
+            (39, "exit"),
+            (_SUB_DOCK, "returning_to_dock"),
+        ],
+    )
+    def test_task_status_mowing_substates(self, sub_state, expected):
+        """While mowing, each subState maps to the matching task status."""
+        handler = Property11Handler()
+        notify = MagicMock()
+        handler.parse_value(_heartbeat(_MOWING_BYTE, sub_state), notify)
+        assert handler.task_status == expected
+        notify.assert_any_call(PROPERTY_1_1_TASK_STATUS_NAME, expected)
+
+    def test_task_status_idle_when_not_mowing(self):
+        """Any non-mowing main state reports no active task ("idle")."""
+        handler = Property11Handler()
+        handler.parse_value(_heartbeat(_IDLE_BYTE, _SUB_DOCK))
+        assert handler.task_status == "idle"
+
+    def test_task_status_notify_only_on_change(self):
+        """task_status notify is not re-emitted when the status is unchanged."""
+        handler = Property11Handler()
+        notify = MagicMock()
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_WORKING), notify)
+        status_calls = [c.args for c in notify.call_args_list if c.args[0] == PROPERTY_1_1_TASK_STATUS_NAME]
+        assert status_calls == [(PROPERTY_1_1_TASK_STATUS_NAME, "mowing")]
+        notify.reset_mock()
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_WORKING), notify)
+        assert not [c for c in notify.call_args_list if c.args[0] == PROPERTY_1_1_TASK_STATUS_NAME]
+
+    def test_task_status_options_complete(self):
+        """The exported options tuple covers every decodable status."""
+        assert TASK_STATUS_OPTIONS == (
+            "idle", "starting", "mowing", "paused",
+            "finished", "failed", "exit", "returning_to_dock",
+        )
+
+    def test_mowing_session_active_initially_false(self):
+        """No session is active before the first heartbeat."""
+        assert Property11Handler().mowing_session_active is False
+
+    def test_mowing_session_active_follows_lifecycle(self):
+        """The session stays active through paused/mowing and ends at exit/idle."""
+        handler = Property11Handler()
+
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_WORKING))  # mowing
+        assert handler.mowing_session_active is True
+
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_PAUSED))  # paused at dock
+        assert handler.mowing_session_active is True
+
+        handler.parse_value(_heartbeat(_MOWING_BYTE, _SUB_DOCK))  # returning_to_dock
+        assert handler.mowing_session_active is True
+
+        handler.parse_value(_heartbeat(_MOWING_BYTE, 39))  # exit
+        assert handler.mowing_session_active is False
+
+        handler.parse_value(_heartbeat(_IDLE_BYTE, 0))  # idle
+        assert handler.mowing_session_active is False
 
 
 class TestSettingsChangeHandler:
@@ -237,18 +319,22 @@ class TestMiscPropertyHandler:
         notify = MagicMock()
         result = handler.handle_property_update(1, 1, [206] + [0] * 18 + [206], notify)
         assert result is True
-        notify.assert_not_called()  # No state change so no notification
+        # No unfinished task for a non-mowing heartbeat; only the initial
+        # task_status ("idle") transition is reported.
+        assert _unfinished_calls(notify) == []
+        notify.assert_any_call(PROPERTY_1_1_TASK_STATUS_NAME, "idle")
 
     def test_handle_property_1_1_unfinished_task_notifies(self):
         """Test that 1:1 update emits notification when has_unfinished_task changes."""
         handler = MiscPropertyHandler()
         notify = MagicMock()
         result = handler.handle_property_update(
-            1, 1, _heartbeat(_MOWING_BYTE, TASK_STATUS_PAUSED), notify
+            1, 1, _heartbeat(_MOWING_BYTE, _SUB_PAUSED), notify
         )
         assert result is True
         assert handler.has_unfinished_task is True
-        notify.assert_called_once_with(PROPERTY_1_1_UNFINISHED_TASK_NAME, True)
+        notify.assert_any_call(PROPERTY_1_1_UNFINISHED_TASK_NAME, True)
+        assert handler.task_status == "paused"
 
     def test_handle_settings_change(self):
         """Test that 2:51 update is handled successfully."""

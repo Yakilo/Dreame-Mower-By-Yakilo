@@ -113,7 +113,17 @@
         "name": "Apparaatcode"
       },
       "current_task": {
-        "name": "Huidige taak"
+        "name": "Huidige taak",
+        "state": {
+          "idle": "Geen taak",
+          "starting": "Starten",
+          "mowing": "Maaien",
+          "paused": "Gepauzeerd",
+          "finished": "Voltooid",
+          "failed": "Mislukt",
+          "exit": "Gestopt",
+          "returning_to_dock": "Terug naar het station"
+        }
       },
       "consumable_blade_health": {
         "name": "Messenstaat"

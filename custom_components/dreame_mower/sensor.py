@@ -13,7 +13,7 @@ from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfArea
 
 from .const import DATA_COORDINATOR, DOMAIN
 from .coordinator import DreameMowerCoordinator
-from .dreame.const import DeviceStatus
+from .dreame.property.property_misc import TASK_STATUS_OPTIONS
 from .entity import DreameMowerEntity
 from .config_flow import DEVICE_TYPE_SWBOT
 
@@ -171,7 +171,13 @@ class DreameMowerDeviceCodeSensor(DreameMowerEntity, SensorEntity):
 
 
 class DreameMowerTaskSensor(DreameMowerEntity, SensorEntity):
-    """Current task sensor for Dreame Mower."""
+    """Current mowing-task status for Dreame Mower.
+
+    The value is decoded from the device heartbeat (prop 1:1). It reflects 
+    whether a task is in progress, paused, or interrupted by docking — and
+    therefore whether pressing start will resume an unfinished task or
+    begin a new one.
+    """
 
     def __init__(self, coordinator: DreameMowerCoordinator) -> None:
         """Initialize the task sensor."""
@@ -179,45 +185,32 @@ class DreameMowerTaskSensor(DreameMowerEntity, SensorEntity):
         self._attr_icon = "mdi:clipboard-play"
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._attr_translation_key = "current_task"
+        self._attr_device_class = SensorDeviceClass.ENUM
+        self._attr_options = list(TASK_STATUS_OPTIONS)
 
     @property
     def native_value(self) -> str | None:
-        """Return the current task status."""
-        task_data = self.coordinator.current_task_data
-        if not task_data:
-            return None
-        
-        execution_active = task_data.get("execution_active", False)
-        task_active = task_data.get("task_active", False)
-        
-        if task_active and execution_active:
-            # Cross-reference with device status: if mower is returning/charging
-            # during an active task, it's recharging mid-task (not actively mowing)
-            if self.coordinator.device_status_code in (DeviceStatus.RETURNING_TO_CHARGE, DeviceStatus.CHARGING, DeviceStatus.CHARGING_COMPLETE):
-                return "Recharging"
-            return "Active"
-        elif task_active and not execution_active:
-            return "Paused"
-        else:
-            return "Inactive"
+        """Return the current mowing task status."""
+        return self.coordinator.device_task_status
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes with detailed task information."""
+        """Return supplementary task details from the device task descriptor.
+
+        These come from the task descriptor (2:50) rather than the heartbeat;
+        the device omits the optional fields (area/region/elapsed) while a task
+        is paused or docked, so they may be ``None`` in those states.
+        """
         attributes: dict[str, Any] = {}
-        
         task_data = self.coordinator.current_task_data
         if task_data:
             attributes.update({
                 "task_type": task_data.get("type"),
-                "execution_active": task_data.get("execution_active"),
-                "task_active": task_data.get("task_active"),
                 "coverage_target": task_data.get("coverage_target"),
                 "area_id": task_data.get("area_id"),
                 "region_id": task_data.get("region_id"),
                 "elapsed_time": task_data.get("elapsed_time"),
             })
-        
         return attributes
 
 

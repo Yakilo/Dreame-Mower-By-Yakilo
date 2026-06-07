@@ -113,7 +113,17 @@
         "name": "Enhetskod"
       },
       "current_task": {
-        "name": "Aktuell uppgift"
+        "name": "Aktuell uppgift",
+        "state": {
+          "idle": "Ingen uppgift",
+          "starting": "Startar",
+          "mowing": "Klipper",
+          "paused": "Pausad",
+          "finished": "Slutförd",
+          "failed": "Misslyckades",
+          "exit": "Stoppad",
+          "returning_to_dock": "Återvänder till stationen"
+        }
       },
       "consumable_blade_health": {
         "name": "Knivskick"

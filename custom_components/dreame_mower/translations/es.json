@@ -113,7 +113,17 @@
         "name": "Código de dispositivo"
       },
       "current_task": {
-        "name": "Tarea actual"
+        "name": "Tarea actual",
+        "state": {
+          "idle": "Sin tarea",
+          "starting": "Iniciando",
+          "mowing": "Segando",
+          "paused": "En pausa",
+          "finished": "Finalizada",
+          "failed": "Fallida",
+          "exit": "Detenida",
+          "returning_to_dock": "Regresando a la estación"
+        }
       },
       "consumable_blade_health": {
         "name": "Estado de cuchillas"

@@ -113,7 +113,17 @@
         "name": "Código do dispositivo"
       },
       "current_task": {
-        "name": "Tarefa atual"
+        "name": "Tarefa atual",
+        "state": {
+          "idle": "Sem tarefa",
+          "starting": "Iniciando",
+          "mowing": "Cortando",
+          "paused": "Pausada",
+          "finished": "Concluída",
+          "failed": "Falhou",
+          "exit": "Parada",
+          "returning_to_dock": "Retornando à estação"
+        }
       },
       "consumable_blade_health": {
         "name": "Estado das lâminas"

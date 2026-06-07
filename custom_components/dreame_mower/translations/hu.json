@@ -113,7 +113,17 @@
         "name": "Eszközkód"
       },
       "current_task": {
-        "name": "Aktuális feladat"
+        "name": "Aktuális feladat",
+        "state": {
+          "idle": "Nincs feladat",
+          "starting": "Indítás",
+          "mowing": "Kaszálás",
+          "paused": "Szüneteltetve",
+          "finished": "Befejezve",
+          "failed": "Sikertelen",
+          "exit": "Leállítva",
+          "returning_to_dock": "Visszatérés az állomásra"
+        }
       },
       "consumable_blade_health": {
         "name": "Penge állapota"
