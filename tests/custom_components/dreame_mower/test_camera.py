@@ -236,6 +236,8 @@ class TestDreameMowerCameraEntity:
         camera_entity._session_active = True
         camera_entity._live_coordinates = [[1, 2], [3, 4]]
         camera_entity.hass = Mock()
+        # Close the scheduled coroutine so it doesn't leak as "never awaited".
+        camera_entity.hass.create_task = Mock(side_effect=lambda coro: coro.close())
         mock_coordinator.device.mowing_session_active = False
 
         with patch.object(camera_entity, "_stop_pose_coverage_timer") as mock_stop, \

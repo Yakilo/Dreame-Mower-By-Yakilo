@@ -170,6 +170,9 @@ class TestLiveMowingMapIntegration:
 
         camera._pose_coverage_timer = None
         camera.hass = Mock()
+        # The real hass schedules these coroutines on the event loop; here we
+        # just close them so they don't leak as "never awaited" warnings.
+        camera.hass.create_task = lambda coro: coro.close()
         # Prevent _handle_property_change from spawning real Timer threads
         # during MQTT replay — they would outlive the test and hang the process.
         camera._start_pose_coverage_timer = lambda: None
