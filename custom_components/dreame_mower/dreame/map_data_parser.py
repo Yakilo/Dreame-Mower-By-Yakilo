@@ -417,9 +417,10 @@ def parse_batch_map_data(batch_data: dict) -> MowerVectorMap | None:
         _LOGGER.debug("No MAP chunks found in batch data")
         return None
 
-    # MAP.info contains the character length of the primary JSON array.
-    # The full reassembled string may contain multiple JSON arrays
-    # concatenated (one per map), so we use MAP.info to split them.
+    # MAP.info contains the character length of the primary JSON array, which
+    # holds every map (one element per mapIndex). Any data beyond that length is
+    # trailing auxiliary content (md5 sums, etc.), not a JSON array, so we parse
+    # only the primary array and ignore the remainder.
     map_info = batch_data.get("MAP.info", "")
     try:
         split_pos = int(map_info) if map_info.isdigit() else 0
@@ -427,21 +428,17 @@ def parse_batch_map_data(batch_data: dict) -> MowerVectorMap | None:
         split_pos = 0
 
     if split_pos > 0 and split_pos < len(raw_map):
-        parts = [raw_map[:split_pos], raw_map[split_pos:]]
-    else:
-        parts = [raw_map]
+        raw_map = raw_map[:split_pos]
 
     map_arrays = []
-    for part in parts:
-        part = part.strip()
-        if not part:
-            continue
+    primary = raw_map.strip()
+    if primary:
         try:
-            arr = json.loads(part)
+            arr = json.loads(primary)
             if isinstance(arr, list):
                 map_arrays.extend(arr)
         except json.JSONDecodeError:
-            _LOGGER.debug("Failed to parse MAP chunk part (len=%d)", len(part))
+            _LOGGER.debug("Failed to parse MAP array (len=%d)", len(primary))
 
     if not map_arrays:
         _LOGGER.warning("No valid MAP arrays found in batch data")

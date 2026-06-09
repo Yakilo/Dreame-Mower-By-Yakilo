@@ -1,6 +1,7 @@
 """Tests for the mower map data parser."""
 
 import json
+import pathlib
 
 import pytest
 
@@ -258,3 +259,75 @@ def test_parse_batch_map_data_tracks_available_maps_and_active_map():
     ]
     assert sorted(result.maps) == [1, 2]
     assert result.maps[2].name == "Back"
+
+
+# ---------------------------------------------------------------------------
+# Real-device payloads (captured fixtures)
+# ---------------------------------------------------------------------------
+
+FIXTURES_DIR = pathlib.Path(__file__).parent / "fixtures"
+
+
+def _load_fixture(name: str) -> dict:
+    with (FIXTURES_DIR / name).open() as fh:
+        return json.load(fh)
+
+
+def test_parse_batch_map_data_real_two_map_payload():
+    """A real multi-chunk batch response with two maps parses both maps.
+
+    The reassembled MAP stream is a single JSON array (length given by
+    MAP.info) followed by trailing auxiliary data. Both maps must be
+    recovered from the primary array.
+    """
+    batch = _load_fixture("batch_map_two_maps.json")
+
+    result = parse_batch_map_data(batch)
+
+    assert result is not None
+    # Primary map is mapIndex 0.
+    assert result.map_index == 0
+    assert result.name == "Zuhause"
+    assert result.total_area == 71
+    # Both maps are tracked.
+    assert [(e.map_index, e.name) for e in result.available_maps] == [
+        (0, "Zuhause"),
+        (1, "Keller"),
+    ]
+    assert sorted(result.maps) == [1, 2]
+    # Geometry parsed for both maps.
+    assert result.maps[1].zones[0].name == "Zone1"
+    assert result.maps[1].boundary == MowerMapBoundary(
+        x1=-11910, y1=-9210, x2=520, y2=3890
+    )
+    assert result.maps[2].name == "Keller"
+    assert result.maps[2].boundary == MowerMapBoundary(
+        x1=-2810, y1=-1870, x2=630, y2=640
+    )
+
+
+def test_parse_batch_map_data_real_large_two_map_payload():
+    """A larger real payload (45 chunks, two maps) parses both maps.
+
+    Exercises a different device with a bigger primary array
+    (MAP.info=30147) and trailing auxiliary data.
+    """
+    batch = _load_fixture("batch_map_jardin_terrain.json")
+
+    result = parse_batch_map_data(batch)
+
+    assert result is not None
+    assert result.map_index == 0
+    assert result.name == "Jardin"
+    assert [(e.map_index, e.name) for e in result.available_maps] == [
+        (0, "Jardin"),
+        (1, "Terrain"),
+    ]
+    assert sorted(result.maps) == [1, 2]
+    assert result.maps[1].boundary == MowerMapBoundary(
+        x1=-26090, y1=-13100, x2=2020, y2=32730
+    )
+    assert result.maps[2].name == "Terrain"
+    assert result.maps[2].boundary == MowerMapBoundary(
+        x1=-40720, y1=-6300, x2=0, y2=31290
+    )
