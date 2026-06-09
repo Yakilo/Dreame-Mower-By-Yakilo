@@ -2,7 +2,10 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from homeassistant.const import CONF_NAME, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.exceptions import ConfigEntryNotReady
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.dreame_mower import async_setup_entry
@@ -62,3 +65,25 @@ async def test_async_setup_entry_fetches_vector_map_for_mowers(hass):
     coordinator.async_request_refresh.assert_awaited_once()
     forward_entry_setups.assert_awaited_once()
     assert hass.data[DOMAIN][entry.entry_id][DATA_COORDINATOR] is coordinator
+
+
+async def test_async_setup_entry_raises_not_ready_on_connect_failure(hass):
+    """A failed device connection should raise ConfigEntryNotReady so HA retries."""
+    entry = _make_entry()
+    entry.add_to_hass(hass)
+
+    coordinator = MagicMock()
+    coordinator.device_type = "mower"
+    coordinator.name = "Test Mower"
+    coordinator.async_connect_device = AsyncMock(return_value=False)
+    coordinator.async_config_entry_first_refresh = AsyncMock(return_value=None)
+
+    with patch(
+        "custom_components.dreame_mower.DreameMowerCoordinator",
+        return_value=coordinator,
+    ), pytest.raises(ConfigEntryNotReady):
+        await async_setup_entry(hass, entry)
+
+    coordinator.async_connect_device.assert_awaited_once()
+    coordinator.async_config_entry_first_refresh.assert_not_awaited()
+    assert DOMAIN not in hass.data or entry.entry_id not in hass.data.get(DOMAIN, {})
