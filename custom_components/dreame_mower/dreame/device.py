@@ -234,11 +234,6 @@ class DreameMowerDevice:
         return self._status_code
 
     @property
-    def has_unfinished_task(self) -> bool:
-        """Return True if a mowing task was paused or interrupted and can be resumed."""
-        return self._misc_handler.has_unfinished_task
-
-    @property
     def task_status(self) -> str | None:
         """Return the current mowing task status decoded from the heartbeat."""
         return self._misc_handler.task_status
@@ -1102,8 +1097,13 @@ class DreameMowerDevice:
         except Exception as ex:
             _LOGGER.error("Error disconnecting from device %s: %s", self._device_id, ex)
 
-    async def _start_mowing_generic(self) -> bool:
-        """Start mowing using the generic cloud action."""
+    async def start_mowing_generic(self) -> bool:
+        """Start mowing via the generic cloud action, letting the device pick the area.
+
+        This mirrors the pre-map-aware behaviour: it sends the bare 5:1
+        START_MOWING action and lets the robot run whatever is configured in the
+        app. Used as an all-area fallback when the map-aware payload fails.
+        """
         if not await asyncio.get_event_loop().run_in_executor(
             None, lambda: self._cloud_device.execute_action(ACTION_START_MOWING)
         ):
@@ -1688,7 +1688,7 @@ class DreameMowerDevice:
             _LOGGER.warning(
                 "All-area mowing fell back to the generic START_MOWING action because no map_id was provided"
             )
-            return await self._start_mowing_generic()
+            return await self.start_mowing_generic()
 
         if not self._validate_map_id(map_id):
             return False

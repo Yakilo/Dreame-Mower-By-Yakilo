@@ -37,7 +37,8 @@ def _make_coordinator(connected=True, status_code=0):
     coordinator.spot_areas = []
     coordinator.device.start_mowing_zones = AsyncMock(return_value=True)
     coordinator.device.start_mowing_spots = AsyncMock(return_value=True)
-    coordinator.device.has_unfinished_task = False
+    coordinator.device.start_mowing_generic = AsyncMock(return_value=True)
+    coordinator.device.mowing_session_active = False
     return coordinator
 
 
@@ -198,9 +199,10 @@ async def test_async_start_spot_mowing_calls_device_spot_start():
 
 
 @pytest.mark.asyncio
-async def test_async_start_mowing_resumes_when_paused():
+async def test_async_start_mowing_resumes_when_session_active():
     coordinator = _make_coordinator()
     coordinator.device.resume = AsyncMock(return_value=True)
+    coordinator.device.mowing_session_active = True
     entity = _make_entity(coordinator)
     entity._attr_activity = LawnMowerActivity.PAUSED
 
@@ -224,11 +226,11 @@ async def test_async_start_mowing_starts_fresh_when_not_paused():
 
 
 @pytest.mark.asyncio
-async def test_async_start_mowing_resumes_when_docked_with_unfinished_task():
-    """When docked but has_unfinished_task is True, start_mowing should resume."""
+async def test_async_start_mowing_resumes_when_docked_with_active_session():
+    """When docked but a mowing session is still active (paused at dock), resume."""
     coordinator = _make_coordinator()
     coordinator.device.resume = AsyncMock(return_value=True)
-    coordinator.device.has_unfinished_task = True
+    coordinator.device.mowing_session_active = True
     entity = _make_entity(coordinator)
     entity._attr_activity = LawnMowerActivity.DOCKED  # robot returned to dock after pause
 
@@ -236,6 +238,64 @@ async def test_async_start_mowing_resumes_when_docked_with_unfinished_task():
 
     coordinator.device.resume.assert_awaited_once()
     coordinator.device.start_mowing.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_all_area_start_failure_falls_back_to_generic():
+    """When the map-aware all-area start returns False, fall back to generic."""
+    coordinator = _make_coordinator()
+    coordinator.selected_mowing_mode = MowingMode.ALL_AREA
+    coordinator.device.start_mowing = AsyncMock(return_value=False)
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED
+
+    await entity.async_start_mowing()
+
+    coordinator.device.start_mowing_generic.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_all_area_start_exception_falls_back_to_generic():
+    """When the map-aware all-area start raises, fall back to generic."""
+    coordinator = _make_coordinator()
+    coordinator.selected_mowing_mode = MowingMode.ALL_AREA
+    coordinator.device.start_mowing = AsyncMock(side_effect=RuntimeError("boom"))
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED
+
+    await entity.async_start_mowing()
+
+    coordinator.device.start_mowing_generic.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_zone_start_failure_does_not_fall_back_to_generic():
+    """A failed zone start must not trigger the all-area-only generic fallback."""
+    coordinator = _make_coordinator()
+    coordinator.selected_mowing_mode = MowingMode.ZONE
+    coordinator.selected_zone_id = 1
+    coordinator.device.start_mowing = AsyncMock(return_value=False)
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED
+
+    await entity.async_start_mowing()
+
+    coordinator.device.start_mowing_generic.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_zone_selection_raises_without_generic_fallback():
+    """A selection HomeAssistantError propagates and skips the generic fallback."""
+    coordinator = _make_coordinator()
+    coordinator.selected_mowing_mode = MowingMode.ZONE
+    coordinator.selected_zone_id = None
+    entity = _make_entity(coordinator)
+    entity._attr_activity = LawnMowerActivity.DOCKED
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_start_mowing()
+
+    coordinator.device.start_mowing_generic.assert_not_awaited()
 
 
 @pytest.mark.asyncio

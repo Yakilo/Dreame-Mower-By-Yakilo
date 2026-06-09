@@ -107,14 +107,17 @@ class DreameMowerLawnMower(DreameMowerEntity, LawnMowerEntity):
 
     async def async_start_mowing(self) -> None:
         """Start or resume mowing."""
+        mode = self.coordinator.selected_mowing_mode
         try:
-            # If currently paused or has an unfinished task, attempt to resume instead of starting a new task
-            if (self._attr_activity == LawnMowerActivity.PAUSED or self.coordinator.device.has_unfinished_task):
+            # While a mowing session is already in progress (mowing, paused, or
+            # returning to dock), resume/continue it instead of starting a new
+            # task. Only when no session is active do we dispatch a fresh start
+            # using the configured map and mowing action.
+            if self.coordinator.device.mowing_session_active:
                 if not await self.coordinator.device.resume():
                     _LOGGER.error("Failed to resume mowing")
                 return
 
-            mode = self.coordinator.selected_mowing_mode
             start_kwargs: dict[str, Any] = {"mode": mode}
             if mode == MowingMode.EDGE:
                 selected_contour_id = self.coordinator.selected_contour_id
@@ -134,10 +137,26 @@ class DreameMowerLawnMower(DreameMowerEntity, LawnMowerEntity):
 
             if not await self.coordinator.device.start_mowing(**start_kwargs):
                 _LOGGER.error("Failed to start mowing")
+                if mode == MowingMode.ALL_AREA:
+                    await self._start_all_area_generic_fallback()
+        except HomeAssistantError:
+            raise
         except Exception as ex:
             _LOGGER.error("Exception while starting mowing: %s", ex)
-            if isinstance(ex, HomeAssistantError):
-                raise
+            if mode == MowingMode.ALL_AREA:
+                await self._start_all_area_generic_fallback()
+
+    async def _start_all_area_generic_fallback(self) -> None:
+        """Fall back to the generic device-decides START_MOWING action.
+
+        Only used for all-area mowing: when the map-aware start payload is
+        rejected or raises, the bare 5:1 action lets the robot run whatever is
+        configured in the app. For zone/edge/spot modes this would mow the wrong
+        area, so the fallback is deliberately limited to all-area starts.
+        """
+        _LOGGER.warning("All-area start failed; falling back to generic START_MOWING action")
+        if not await self.coordinator.device.start_mowing_generic():
+            _LOGGER.error("Generic START_MOWING fallback also failed")
 
     async def async_start_zone_mowing(self, zone_ids: list[int]) -> None:
         """Start mowing for one or more explicit zone IDs."""

@@ -14,7 +14,6 @@ from ..const import PROPERTY_1_1, SETTINGS_CHANGE_PROPERTY
 
 # Heartbeat (prop 1:1) decoded constants
 _MAIN_STATE_MOWING = 4
-PROPERTY_1_1_UNFINISHED_TASK_NAME = "property_1_1_has_unfinished_task"
 PROPERTY_1_1_TASK_STATUS_NAME = "property_1_1_task_status"
 
 # Mowing task status decoded from the heartbeat byte 13 (subState). The raw byte
@@ -39,10 +38,6 @@ _TASK_STATUS_BY_INDEX: dict[int, str] = {
 }
 # Ordered tuple of every possible task-status value, for sensor enum options.
 TASK_STATUS_OPTIONS: tuple[str, ...] = tuple(_TASK_STATUS_BY_INDEX.values())
-# Task status from which a paused/interrupted mowing task can be resumed. Only the
-# resting "paused" state qualifies; "returning_to_dock" is transient and also
-# occurs on the normal post-completion drive home, so it is not resumable.
-_RESUMABLE_TASK_STATUSES = frozenset({"paused"})
 
 # Task statuses that mean no mowing session is in progress. Every other decoded
 # status (starting/mowing/paused/finished/failed/returning_to_dock) means a
@@ -65,7 +60,6 @@ class Property11Handler:
     def __init__(self) -> None:
         """Initialize property handler."""
         self._last_value: list[int] | None = None
-        self._has_unfinished_task: bool = False
         self._task_status: str | None = None
 
     def parse_value(self, value: list[int], notify_callback: Callable[[str, Any], None] | None = None) -> bool:
@@ -119,18 +113,6 @@ class Property11Handler:
             self._task_status = status
             if notify_callback is not None:
                 notify_callback(PROPERTY_1_1_TASK_STATUS_NAME, status)
-
-        # has_unfinished_task is derived from the same decoded status.
-        has_unfinished = status in _RESUMABLE_TASK_STATUSES
-        if has_unfinished != self._has_unfinished_task:
-            self._has_unfinished_task = has_unfinished
-            if notify_callback is not None:
-                notify_callback(PROPERTY_1_1_UNFINISHED_TASK_NAME, has_unfinished)
-
-    @property
-    def has_unfinished_task(self) -> bool:
-        """Return True when a paused or dock-interrupted mowing task can be resumed."""
-        return self._has_unfinished_task
 
     @property
     def task_status(self) -> str | None:
@@ -199,11 +181,6 @@ class MiscPropertyHandler:
         """Check if a property is a miscellaneous property."""
         return PROPERTY_1_1.matches(siid, piid) or SETTINGS_CHANGE_PROPERTY.matches(siid, piid)
     
-    @property
-    def has_unfinished_task(self) -> bool:
-        """Return True when a paused or dock-interrupted mowing task can be resumed."""
-        return self._property_1_1_handler.has_unfinished_task
-
     @property
     def task_status(self) -> str | None:
         """Return the decoded mowing task status from the heartbeat."""
