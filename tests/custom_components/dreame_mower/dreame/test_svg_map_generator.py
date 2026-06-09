@@ -5,6 +5,10 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from custom_components.dreame_mower.dreame.map_data_parser import (
+    parse_batch_map_data,
+    vector_map_to_map_data,
+)
 from custom_components.dreame_mower.dreame.svg_map_generator import (
     calculate_bounds,
     coord_to_pixel,
@@ -21,6 +25,7 @@ from custom_components.dreame_mower.dreame.svg_map_generator import (
 
 # Path to test data
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 GOLDEN_JSON_FILE = TEST_DATA_DIR / "test_svg_map_generator.json"
 
 
@@ -316,6 +321,41 @@ class TestMapBoundaryMultiZone:
         assert result == expected_result, (
             f"Generated SVG does not match golden file. "
             f"Actual output saved to {output_svg_file}. "
+            f"If the changes are intentional, update the golden file."
+        )
+
+
+class TestForbiddenAreaShapes:
+    """Golden-image test for the advanced forbidden-area shapes.
+
+    Renders a real device's map (issue #139) that contains circular
+    forbidden zones (shapeType 3, stored as a bounding box) and rotated
+    rectangular zones (shapeType 2, stored axis-aligned with a separate
+    ``angle``). Both must be expanded into renderable polygons; before the fix
+    circles drew nothing and rotated rectangles were rendered axis-aligned.
+    """
+
+    def test_render_circles_and_tilted_rectangles(self, mock_coordinator):
+        batch = json.loads((FIXTURES_DIR / "batch_map_circles_tilted_rect.json").read_text())
+
+        vector_map = parse_batch_map_data(batch)
+        assert vector_map is not None
+        map_data = vector_map_to_map_data(vector_map)
+        # ``start`` is derived from wall-clock time; pin it so the golden SVG
+        # (which renders a "Started:" timestamp) is reproducible.
+        map_data["start"] = 1747772886  # fixed epoch -> 2025-05-20 20:28:06 UTC
+
+        result = generate_svg_map_image(map_data, None, mock_coordinator, rotation=0)
+
+        actual_svg_file = TEST_DATA_DIR / "batch_map_circles_tilted_rect_actual.svg"
+        actual_svg_file.write_bytes(result)
+
+        golden_svg_file = TEST_DATA_DIR / "batch_map_circles_tilted_rect_golden.svg"
+        expected_result = golden_svg_file.read_bytes()
+
+        assert result == expected_result, (
+            f"Generated SVG does not match golden file. "
+            f"Actual output saved to {actual_svg_file}. "
             f"If the changes are intentional, update the golden file."
         )
 

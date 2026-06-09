@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass, field
@@ -16,6 +17,14 @@ _LOGGER = logging.getLogger(__name__)
 
 # Sentinel value in M_PATH data marking a path segment break
 _PATH_SENTINEL = (32767, -32768)
+
+# Zone/area shapeType values that need geometric expansion before rendering.
+# Polygon shapes (0 and others) already carry their full vertex list.
+_SHAPE_RECTANGLE = 2  # axis-aligned corners plus a rotation "angle" in degrees
+_SHAPE_CIRCLE = 3     # two opposite bounding-box corners
+
+# Number of segments used to approximate a circle/ellipse as a polygon.
+_CIRCLE_SEGMENTS = 36
 
 
 @dataclass
@@ -26,6 +35,7 @@ class MowerZone:
     name: str = ""
     zone_type: int = 0
     shape_type: int = 0
+    angle: float = 0.0
     area: float = 0
     time: int = 0
     etime: int = 0
@@ -157,6 +167,60 @@ def _extract_path_coords(path_list: list) -> list[tuple[int, int]]:
     return [(p["x"], p["y"]) for p in path_list]
 
 
+def _circle_polygon(path: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Approximate a circle/ellipse (two opposite bounding-box corners) as a polygon.
+
+    SVG has native <circle>/<ellipse>, but the downstream render pipeline
+    (scaling, bounds-fitting, map rotation, svg_polygon) is purely point-list
+    based and carries no shape metadata. Expanding to a polygon here lets the
+    circle flow through that machinery unchanged instead of threading a
+    centre+radii descriptor through every stage.
+    """
+    (x1, y1), (x2, y2) = path[0], path[1]
+    cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+    rx, ry = abs(x2 - x1) / 2.0, abs(y2 - y1) / 2.0
+    polygon = []
+    for i in range(_CIRCLE_SEGMENTS):
+        theta = 2.0 * math.pi * i / _CIRCLE_SEGMENTS
+        polygon.append((round(cx + rx * math.cos(theta)), round(cy + ry * math.sin(theta))))
+    return polygon
+
+
+def _rotate_polygon(path: list[tuple[int, int]], angle_deg: float) -> list[tuple[int, int]]:
+    """Rotate polygon vertices by ``angle_deg`` degrees around their centroid."""
+    if not path:
+        return []
+    cx = sum(p[0] for p in path) / len(path)
+    cy = sum(p[1] for p in path) / len(path)
+    theta = math.radians(angle_deg)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    rotated = []
+    for x, y in path:
+        dx, dy = x - cx, y - cy
+        rotated.append((round(cx + dx * cos_t - dy * sin_t), round(cy + dx * sin_t + dy * cos_t)))
+    return rotated
+
+
+def resolve_zone_polygon(
+    shape_type: int, angle: float, path: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """Expand an encoded zone shape into a renderable polygon.
+
+    Most shapes already store their full vertex list, but circles store only the
+    two opposite corners of their bounding box, and rectangles store an
+    axis-aligned outline with a separate rotation ``angle``. Both need expanding
+    before they can be rendered as polygons.
+    """
+    if shape_type == _SHAPE_CIRCLE and len(path) >= 2:
+        return _circle_polygon(path)
+    if shape_type == _SHAPE_RECTANGLE and angle:
+        # The device measures the rotation in its own coordinate frame, whose
+        # Y axis points opposite to the rendered image; negate so the tilt
+        # matches the direction shown in the app.
+        return _rotate_polygon(path, -angle)
+    return list(path)
+
+
 def _extract_contour_id(raw_contour_id: str | list[int] | tuple[int, int]) -> tuple[int, int]:
     """Convert a contour identifier into a normalized two-integer tuple."""
     if isinstance(raw_contour_id, str):
@@ -215,6 +279,8 @@ def parse_mower_map(map_json_str: str) -> MowerVectorMap:
             path=_extract_path_coords(zone_data.get("path", [])),
             name=zone_data.get("name", ""),
             zone_type=zone_data.get("type", 0),
+            shape_type=zone_data.get("shapeType", 0),
+            angle=zone_data.get("angle", 0) or 0.0,
         ))
 
     # Parse navigation paths between zones
@@ -368,8 +434,9 @@ def vector_map_to_map_data(vector_map: MowerVectorMap) -> dict:
 
     obstacles = []
     for fa in vector_map.forbidden_areas:
+        polygon = resolve_zone_polygon(fa.shape_type, fa.angle, fa.path)
         obstacles.append({
-            "data": [[x, y] for x, y in fa.path],
+            "data": [[x, y] for x, y in polygon],
             "id": fa.zone_id,
             "type": 0,
         })

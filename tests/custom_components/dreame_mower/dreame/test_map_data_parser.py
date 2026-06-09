@@ -11,6 +11,8 @@ from custom_components.dreame_mower.dreame.map_data_parser import (
     parse_mow_paths,
     parse_mower_map,
     reassemble_map_chunks,
+    resolve_zone_polygon,
+    vector_map_to_map_data,
 )
 
 
@@ -110,6 +112,71 @@ def test_parse_mower_map_forbidden_area():
     result = parse_mower_map(map_json)
     assert len(result.forbidden_areas) == 1
     assert result.forbidden_areas[0].zone_id == 2
+
+
+def test_parse_mower_map_forbidden_area_captures_shape_and_angle():
+    map_json = _make_map_json(
+        forbiddenAreas={
+            "dataType": "Map",
+            "value": [
+                [3, {
+                    "path": [{"x": 0, "y": 0}, {"x": 10, "y": 0},
+                             {"x": 10, "y": 10}, {"x": 0, "y": 10}],
+                    "shapeType": 2,
+                    "angle": 30.0,
+                }],
+            ],
+        }
+    )
+    result = parse_mower_map(map_json)
+    fa = result.forbidden_areas[0]
+    assert fa.shape_type == 2
+    assert fa.angle == 30.0
+
+
+def test_resolve_zone_polygon_polygon_unchanged():
+    path = [(0, 0), (10, 0), (10, 10)]
+    assert resolve_zone_polygon(0, 0.0, path) == path
+
+
+def test_resolve_zone_polygon_circle_expands_bbox_to_polygon():
+    # Two opposite corners of a 100x100 bounding box -> circle centred at (50, 50).
+    polygon = resolve_zone_polygon(3, 0.0, [(0, 0), (100, 100)])
+    assert len(polygon) == 36
+    # Every vertex lies on the radius-50 circle centred at (50, 50).
+    for x, y in polygon:
+        assert abs((x - 50) ** 2 + (y - 50) ** 2 - 50 ** 2) <= 100
+
+
+def test_resolve_zone_polygon_rotates_rectangle_by_angle():
+    square = [(-10, -10), (10, -10), (10, 10), (-10, 10)]
+    rotated = resolve_zone_polygon(2, 90.0, square)
+    # The device angle is negated to match the rendered (Y-flipped) frame, so a
+    # 90° rotation about the centroid (0, 0) maps (-10, -10) -> (-10, 10).
+    assert rotated[0] == (-10, 10)
+    # Centroid is preserved.
+    assert (sum(p[0] for p in rotated), sum(p[1] for p in rotated)) == (0, 0)
+
+
+def test_resolve_zone_polygon_rectangle_no_angle_unchanged():
+    square = [(-10, -10), (10, -10), (10, 10), (-10, 10)]
+    assert resolve_zone_polygon(2, 0.0, square) == square
+
+
+def test_vector_map_to_map_data_expands_forbidden_shapes():
+    map_json = _make_map_json(
+        forbiddenAreas={
+            "dataType": "Map",
+            "value": [
+                [1, {"path": [{"x": 0, "y": 0}, {"x": 100, "y": 100}], "shapeType": 3}],
+            ],
+        }
+    )
+    vmap = parse_mower_map(map_json)
+    data = vector_map_to_map_data(vmap)
+    assert len(data["obstacle"]) == 1
+    # Circle expanded to a 36-point renderable polygon (svg_polygon needs >= 3).
+    assert len(data["obstacle"][0]["data"]) == 36
 
 
 def test_parse_mower_map_contours():
