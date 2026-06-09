@@ -36,6 +36,7 @@ def _make_coordinator(connected=True, status_code=0):
     coordinator.selected_spot_area_id = None
     coordinator.spot_areas = []
     coordinator.device.start_mowing_zones = AsyncMock(return_value=True)
+    coordinator.device.start_mowing_edges = AsyncMock(return_value=True)
     coordinator.device.start_mowing_spots = AsyncMock(return_value=True)
     coordinator.device.start_mowing_generic = AsyncMock(return_value=True)
     coordinator.device.mowing_session_active = False
@@ -187,6 +188,25 @@ async def test_async_start_zone_mowing_calls_device_zone_start():
     await entity.async_start_zone_mowing([1, 3])
 
     entity.coordinator.device.start_mowing_zones.assert_awaited_once_with([1, 3])
+
+
+@pytest.mark.asyncio
+async def test_async_start_edge_mowing_calls_device_edge_start():
+    entity = _make_entity()
+
+    await entity.async_start_edge_mowing([[1, 0], [2, 0]])
+
+    entity.coordinator.device.start_mowing_edges.assert_awaited_once_with([[1, 0], [2, 0]])
+
+
+@pytest.mark.asyncio
+async def test_async_start_edge_mowing_raises_on_failure():
+    coordinator = _make_coordinator()
+    coordinator.device.start_mowing_edges = AsyncMock(return_value=False)
+    entity = _make_entity(coordinator)
+
+    with pytest.raises(HomeAssistantError):
+        await entity.async_start_edge_mowing([[1, 0]])
 
 
 @pytest.mark.asyncio

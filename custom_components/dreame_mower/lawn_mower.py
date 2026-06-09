@@ -47,6 +47,11 @@ async def async_setup_entry(
         "async_start_zone_mowing",
     )
     platform.async_register_entity_service(
+        "start_edge_mowing",
+        {vol.Required("contour_ids"): [vol.All([vol.Coerce(int)], vol.Length(min=2, max=2))]},
+        "async_start_edge_mowing",
+    )
+    platform.async_register_entity_service(
         "start_spot_mowing",
         {vol.Required("spot_area_ids"): [vol.Coerce(int)]},
         "async_start_spot_mowing",
@@ -162,6 +167,11 @@ class DreameMowerLawnMower(DreameMowerEntity, LawnMowerEntity):
         """Start mowing for one or more explicit zone IDs."""
         if not await self.coordinator.device.start_mowing_zones(zone_ids):
             raise HomeAssistantError(f"Failed to start zone mowing for zone IDs: {zone_ids}")
+
+    async def async_start_edge_mowing(self, contour_ids: list[list[int]]) -> None:
+        """Start edge mowing for one or more explicit contour IDs."""
+        if not await self.coordinator.device.start_mowing_edges(contour_ids):
+            raise HomeAssistantError(f"Failed to start edge mowing for contour IDs: {contour_ids}")
 
     async def async_start_spot_mowing(self, spot_area_ids: list[int]) -> None:
         """Start mowing for one or more explicit spot-area IDs."""

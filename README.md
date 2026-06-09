@@ -60,6 +60,22 @@ data:
 
 Zone IDs correspond to the zones defined on your map. You can find them via the zone select entities exposed by the integration.
 
+### `dreame_mower.start_edge_mowing`
+
+Start mowing the edges of one or more contours without the mower returning to the station between them.
+
+```yaml
+action: dreame_mower.start_edge_mowing
+target:
+  entity_id: lawn_mower.your_mower
+data:
+  contour_ids:
+    - [1, 0]
+    - [2, 0]
+```
+
+Contour IDs are two-integer pairs. The available pairs are exposed in the mower entity's `contours` attribute once the map has been fetched, and in the **Edge** select entity.
+
 ### `dreame_mower.start_spot_mowing`
 
 Start mowing one or more spot areas by their IDs.

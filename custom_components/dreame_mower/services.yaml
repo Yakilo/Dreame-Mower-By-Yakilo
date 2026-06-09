@@ -12,6 +12,23 @@ start_zone_mowing:
       required: true
       example: [1, 3]
 
+start_edge_mowing:
+  name: Start edge mowing
+  description: Start mowing the edges for one or more explicit contour IDs.
+  target:
+    entity:
+      integration: dreame_mower
+      domain: lawn_mower
+  fields:
+    contour_ids:
+      name: Contour IDs
+      description: >-
+        List of contour ID pairs to mow, for example [[1, 0], [2, 0]]. Available
+        contour IDs are exposed in the mower entity's contours attribute once the
+        map has been fetched.
+      required: true
+      example: [[1, 0], [2, 0]]
+
 start_spot_mowing:
   name: Start spot mowing
   description: Start mowing for one or more explicit spot area IDs.
