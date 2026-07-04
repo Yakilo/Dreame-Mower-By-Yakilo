@@ -80,7 +80,8 @@
           "charging": "Töltés",
           "mapping": "Feltérképezés",
           "charging_complete": "Töltés teljes",
-          "updating": "Frissítés"
+          "updating": "Frissítés",
+          "maintenance_paused": "Szüneteltetve a karbantartási ponton"
         }
       },
       "charging_status": {

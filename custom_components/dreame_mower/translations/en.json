@@ -80,7 +80,8 @@
           "charging": "Charging",
           "mapping": "Mapping",
           "charging_complete": "Charging complete",
-          "updating": "Updating"
+          "updating": "Updating",
+          "maintenance_paused": "Paused at maintenance point"
         }
       },
       "charging_status": {

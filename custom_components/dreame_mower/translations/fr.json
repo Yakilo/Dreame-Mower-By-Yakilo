@@ -80,7 +80,8 @@
           "charging": "Chargement",
           "mapping": "Cartographie",
           "charging_complete": "Chargement terminé",
-          "updating": "Mise à jour"
+          "updating": "Mise à jour",
+          "maintenance_paused": "En pause au point d'entretien"
         }
       },
       "charging_status": {

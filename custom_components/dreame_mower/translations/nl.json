@@ -80,7 +80,8 @@
           "charging": "Laad-",
           "mapping": "Mapping",
           "charging_complete": "Opladen compleet",
-          "updating": "Bijwerken"
+          "updating": "Bijwerken",
+          "maintenance_paused": "Gepauzeerd bij onderhoudspunt"
         }
       },
       "charging_status": {

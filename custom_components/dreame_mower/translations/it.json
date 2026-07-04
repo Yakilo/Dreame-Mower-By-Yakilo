@@ -80,7 +80,8 @@
           "charging": "Carica",
           "mapping": "Mappatura",
           "charging_complete": "Accusa completa",
-          "updating": "Aggiornamento"
+          "updating": "Aggiornamento",
+          "maintenance_paused": "In pausa al punto di manutenzione"
         }
       },
       "charging_status": {

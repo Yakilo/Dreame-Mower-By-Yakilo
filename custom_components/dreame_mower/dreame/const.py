@@ -130,6 +130,7 @@ class DeviceStatus(IntEnum):
     MAPPING = 11
     CHARGING_COMPLETE = 13
     UPDATING = 14
+    MAINTENANCE_PAUSED = 75  # Paused at the maintenance point (issue #162)
 
 
 STATUS_MAPPING: dict[int, str] = {
@@ -142,7 +143,8 @@ STATUS_MAPPING: dict[int, str] = {
     DeviceStatus.CHARGING: "charging",
     DeviceStatus.MAPPING: "mapping",
     DeviceStatus.CHARGING_COMPLETE: "charging_complete",
-    DeviceStatus.UPDATING: "updating"
+    DeviceStatus.UPDATING: "updating",
+    DeviceStatus.MAINTENANCE_PAUSED: "maintenance_paused"
 }
 
 def map_status_to_activity(status: int) -> LawnMowerActivity:
@@ -153,7 +155,7 @@ def map_status_to_activity(status: int) -> LawnMowerActivity:
     """
     if status in [DeviceStatus.MOWING]:
         return LawnMowerActivity.MOWING
-    elif status in [DeviceStatus.STANDBY, DeviceStatus.PAUSED]:
+    elif status in [DeviceStatus.STANDBY, DeviceStatus.PAUSED, DeviceStatus.MAINTENANCE_PAUSED]:
         return LawnMowerActivity.PAUSED
     elif status in [DeviceStatus.PAUSED_DUE_TO_ERRORS]:
         return LawnMowerActivity.ERROR

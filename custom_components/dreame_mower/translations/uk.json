@@ -80,7 +80,8 @@
           "charging": "Зарядка",
           "mapping": "Картографування",
           "charging_complete": "Зарядка завершена",
-          "updating": "Оновлення"
+          "updating": "Оновлення",
+          "maintenance_paused": "Призупинено в точці обслуговування"
         }
       },
       "charging_status": {

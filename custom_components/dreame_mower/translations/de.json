@@ -80,7 +80,8 @@
           "charging": "Wird geladen",
           "mapping": "Karttierung",
           "charging_complete": "Vollständig geladen",
-          "updating": "Wird aktualisiert"
+          "updating": "Wird aktualisiert",
+          "maintenance_paused": "Pausiert am Wartungspunkt"
         }
       },
       "charging_status": {

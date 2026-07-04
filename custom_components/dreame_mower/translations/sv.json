@@ -80,7 +80,8 @@
           "charging": "Laddning",
           "mapping": "Kartläggning",
           "charging_complete": "Laddning komplett",
-          "updating": "Uppdatering"
+          "updating": "Uppdatering",
+          "maintenance_paused": "Pausad vid underhållspunkten"
         }
       },
       "charging_status": {

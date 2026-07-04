@@ -80,7 +80,8 @@
           "charging": "Зарядка",
           "mapping": "Картирование",
           "charging_complete": "Зарядка завершена",
-          "updating": "Обновление"
+          "updating": "Обновление",
+          "maintenance_paused": "Приостановлено в точке обслуживания"
         }
       },
       "charging_status": {
