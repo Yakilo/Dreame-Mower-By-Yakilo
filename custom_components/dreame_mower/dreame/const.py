@@ -172,6 +172,7 @@ CHARGING_STATUS_MAPPING: dict[int, str] = {
     2: "not_charging",
     3: "charging_completed",
     5: "return_to_charge",
+    15: "charging_paused_high_temperature",  # Charging paused: battery temperature too high (issue #167)
     16: "charging_paused_low_temperature",  # Charging paused: battery temperature too low (issue #40)
 }
 

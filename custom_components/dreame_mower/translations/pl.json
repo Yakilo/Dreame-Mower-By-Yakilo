@@ -91,6 +91,7 @@
           "not_charging": "Brak ładowania",
           "charging_completed": "Ładowanie zakończone",
           "return_to_charge": "Powrót do ładowania",
+          "charging_paused_high_temperature": "Ładowanie wstrzymane: temperatura baterii zbyt wysoka",
           "charging_paused_low_temperature": "Ładowanie wstrzymane: temperatura baterii zbyt niska"
         }
       },

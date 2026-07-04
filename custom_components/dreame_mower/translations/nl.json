@@ -91,6 +91,7 @@
           "not_charging": "Niet opladen",
           "charging_completed": "Opladen voltooid",
           "return_to_charge": "Keer terug naar de kosten",
+          "charging_paused_high_temperature": "Opladen gepauzeerd: batterijtemperatuur te hoog",
           "charging_paused_low_temperature": "Opladen gepauzeerd: batterijtemperatuur te laag"
         }
       },

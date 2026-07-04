@@ -91,6 +91,7 @@
           "not_charging": "Laddar inte",
           "charging_completed": "Laddning avslutad",
           "return_to_charge": "Återgå till laddning",
+          "charging_paused_high_temperature": "Laddning pausad: batteritemperaturen är för hög",
           "charging_paused_low_temperature": "Laddning pausad: batteritemperaturen är för låg"
         }
       },

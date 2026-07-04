@@ -91,6 +91,7 @@
           "not_charging": "Не заряджається",
           "charging_completed": "Зарядка завершена",
           "return_to_charge": "Повернення до заряду",
+          "charging_paused_high_temperature": "Зарядка призупинена: температура акумулятора занадто висока",
           "charging_paused_low_temperature": "Зарядка призупинена: температура акумулятора занадто низька"
         }
       },
