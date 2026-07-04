@@ -81,6 +81,8 @@
           "mapping": "Mapowanie",
           "charging_complete": "Ładowanie zakończone",
           "updating": "Aktualizacja",
+          "charging_paused_high_temperature": "Ładowanie wstrzymane: temperatura baterii zbyt wysoka",
+          "charging_paused_low_temperature": "Ładowanie wstrzymane: temperatura baterii zbyt niska",
           "maintenance_paused": "Wstrzymano w punkcie konserwacji"
         }
       },

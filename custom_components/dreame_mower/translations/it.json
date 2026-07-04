@@ -81,6 +81,8 @@
           "mapping": "Mappatura",
           "charging_complete": "Accusa completa",
           "updating": "Aggiornamento",
+          "charging_paused_high_temperature": "Ricarica in pausa: temperatura della batteria troppo alta",
+          "charging_paused_low_temperature": "Ricarica in pausa: temperatura della batteria troppo bassa",
           "maintenance_paused": "In pausa al punto di manutenzione"
         }
       },

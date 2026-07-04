@@ -81,6 +81,8 @@
           "mapping": "Mapping",
           "charging_complete": "Charging complete",
           "updating": "Updating",
+          "charging_paused_high_temperature": "Charging paused: battery temperature too high",
+          "charging_paused_low_temperature": "Charging paused: battery temperature too low",
           "maintenance_paused": "Paused at maintenance point"
         }
       },

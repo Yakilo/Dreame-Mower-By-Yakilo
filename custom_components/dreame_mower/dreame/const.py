@@ -130,6 +130,8 @@ class DeviceStatus(IntEnum):
     MAPPING = 11
     CHARGING_COMPLETE = 13
     UPDATING = 14
+    CHARGING_PAUSED_HIGH_TEMPERATURE = 15  # Charging paused: battery temperature too high (issue #167)
+    CHARGING_PAUSED_LOW_TEMPERATURE = 16  # Charging paused: battery temperature too low (issue #40)
     MAINTENANCE_PAUSED = 75  # Paused at the maintenance point (issue #162)
 
 
@@ -144,6 +146,8 @@ STATUS_MAPPING: dict[int, str] = {
     DeviceStatus.MAPPING: "mapping",
     DeviceStatus.CHARGING_COMPLETE: "charging_complete",
     DeviceStatus.UPDATING: "updating",
+    DeviceStatus.CHARGING_PAUSED_HIGH_TEMPERATURE: "charging_paused_high_temperature",
+    DeviceStatus.CHARGING_PAUSED_LOW_TEMPERATURE: "charging_paused_low_temperature",
     DeviceStatus.MAINTENANCE_PAUSED: "maintenance_paused"
 }
 
@@ -161,7 +165,14 @@ def map_status_to_activity(status: int) -> LawnMowerActivity:
         return LawnMowerActivity.ERROR
     elif status in [DeviceStatus.RETURNING_TO_CHARGE]:
         return LawnMowerActivity.RETURNING
-    elif status in [DeviceStatus.CHARGING, DeviceStatus.MAPPING, DeviceStatus.CHARGING_COMPLETE, DeviceStatus.UPDATING]:
+    elif status in [
+        DeviceStatus.CHARGING,
+        DeviceStatus.MAPPING,
+        DeviceStatus.CHARGING_COMPLETE,
+        DeviceStatus.UPDATING,
+        DeviceStatus.CHARGING_PAUSED_HIGH_TEMPERATURE,
+        DeviceStatus.CHARGING_PAUSED_LOW_TEMPERATURE,
+    ]:
         return LawnMowerActivity.DOCKED
     else:
         _LOGGER.warning("Unknown status %s, defaulting to DOCKED", status)

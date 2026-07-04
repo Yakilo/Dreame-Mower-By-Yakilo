@@ -81,6 +81,8 @@
           "mapping": "Картографування",
           "charging_complete": "Зарядка завершена",
           "updating": "Оновлення",
+          "charging_paused_high_temperature": "Зарядка призупинена: температура акумулятора занадто висока",
+          "charging_paused_low_temperature": "Зарядка призупинена: температура акумулятора занадто низька",
           "maintenance_paused": "Призупинено в точці обслуговування"
         }
       },

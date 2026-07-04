@@ -81,6 +81,8 @@
           "mapping": "Mapeamento",
           "charging_complete": "Cobrança completa",
           "updating": "Atualização",
+          "charging_paused_high_temperature": "Carregamento pausado: temperatura da bateria muito alta",
+          "charging_paused_low_temperature": "Carregamento pausado: temperatura da bateria muito baixa",
           "maintenance_paused": "Pausado no ponto de manutenção"
         }
       },

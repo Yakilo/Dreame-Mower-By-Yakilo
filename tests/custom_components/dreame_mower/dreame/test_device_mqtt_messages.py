@@ -179,6 +179,15 @@ class TestDeviceMqttPropertyUpdate:
                 "charging_status",
                 lambda v: v == "charging_paused_low_temperature"
             ),
+            (  # Issue #167: 2:1 device status 15 = charging paused high temperature (mova.mower.g2405c)
+                {
+                    "id": 201,
+                    "method": "properties_changed",
+                    "params": [{"did": "-1******55", "piid": 1, "siid": 2, "value": 15}]
+                },
+                "status",
+                lambda v: v == 15
+            ),
             (  # Issue #98: 1:2 firmware install state 4 = firmware_download_failed (dreame.mower.p2255 fw 4.3.6_1542)
                 {
                     "id": 101,

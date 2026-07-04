@@ -81,6 +81,8 @@
           "mapping": "Cartographie",
           "charging_complete": "Chargement terminé",
           "updating": "Mise à jour",
+          "charging_paused_high_temperature": "Charge pausée : température de la batterie trop élevée",
+          "charging_paused_low_temperature": "Charge pausée : température de la batterie trop basse",
           "maintenance_paused": "En pause au point d'entretien"
         }
       },
