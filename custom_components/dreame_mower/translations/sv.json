@@ -43,7 +43,7 @@
       "unsupported": "Denna enhetsmodell stöds inte av denna integration.",
       "credentials_incomplete": "Användarnamn, lösenord och land är obligatoriska.",
       "login_error": "Inloggning misslyckades. Kontrollera ditt användarnamn och lösenord. Se till att du har valt rätt kontotyp (Dreamehome vs MOVAhome).",
-      "no_devices": "Ingen kompatibel gräsklippare hittades i detta konto. Se till att enheten är tillagd i din app och prova ett annat serverland om det behövs.",
+      "no_devices": "Ingen kompatibel gräsklippare hittades i detta konto. Se till att du valde rätt kontotyp — MOVAhome för MOVA-enheter, Dreamehome för Dreame — och att enheten är tillagd i den appen. Du kan även prova ett annat serverland.",
       "invalid_account_type": "Ogiltigt kontotyp valt."
     },
     "abort": {

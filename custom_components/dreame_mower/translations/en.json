@@ -43,7 +43,7 @@
       "unsupported": "Device model is not supported by this integration.",
       "credentials_incomplete": "Username, password and country are all required.",
       "login_error": "Login failed. Check your username and password. Make sure you selected the correct account type (Dreamehome vs MOVAhome).",
-      "no_devices": "No supported mower found in this account. Make sure the device is added to your app and try a different server country if needed.",
+      "no_devices": "No supported mower found in this account. Make sure you picked the right account type — MOVAhome for MOVA devices, Dreamehome for Dreame — and that the device is added to that app. You can also try a different server country.",
       "invalid_account_type": "Invalid account type selected."
     },
     "abort": {

@@ -43,7 +43,7 @@
       "unsupported": "Ten model urządzenia nie jest obsługiwany przez tę integrację.",
       "credentials_incomplete": "Nazwa użytkownika, hasło i kraj są wymagane.",
       "login_error": "Logowanie nie powiodło się. Sprawdź nazwę użytkownika i hasło. Upewnij się, że wybrałeś właściwy typ konta (Dreamehome vs MOVAhome).",
-      "no_devices": "Nie znaleziono obsługiwanej kosiarki na tym koncie. Upewnij się, że urządzenie zostało dodane do aplikacji i w razie potrzeby spróbuj innego kraju serwera.",
+      "no_devices": "Nie znaleziono obsługiwanej kosiarki na tym koncie. Upewnij się, że wybrano właściwy typ konta — MOVAhome dla urządzeń MOVA, Dreamehome dla Dreame — oraz że urządzenie zostało dodane do tej aplikacji. Możesz też spróbować innego kraju serwera.",
       "invalid_account_type": "Wybrano nieprawidłowy typ konta."
     },
     "abort": {

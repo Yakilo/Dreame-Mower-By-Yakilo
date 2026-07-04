@@ -43,7 +43,7 @@
       "unsupported": "Ezt az eszközmodellt az integráció nem támogatja.",
       "credentials_incomplete": "Felhasználónév, jelszó és ország megadása kötelező.",
       "login_error": "Bejelentkezés sikertelen. Ellenőrizze felhasználónevét és jelszavát. Győződjön meg arról, hogy a megfelelő fióktípust választotta (Dreamehome vs MOVAhome).",
-      "no_devices": "Nem található támogatott fűnyíró ebben a fiókban. Győződjön meg arról, hogy az eszköz hozzá van adva az alkalmazásához, és szükség esetén próbáljon meg egy másik szerverországot.",
+      "no_devices": "Nem található támogatott fűnyíró ebben a fiókban. Győződjön meg arról, hogy a megfelelő fióktípust választotta — MOVAhome a MOVA-eszközökhöz, Dreamehome a Dreame-hez —, és hogy az eszköz hozzá van adva az adott alkalmazáshoz. Kipróbálhat egy másik szerverországot is.",
       "invalid_account_type": "Érvénytelen fióktípus van kiválasztva."
     },
     "abort": {

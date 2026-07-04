@@ -43,7 +43,7 @@
       "unsupported": "Este modelo de dispositivo não é suportado por esta integração.",
       "credentials_incomplete": "Nome de utilizador, palavra-passe e país são obrigatórios.",
       "login_error": "Falha no início de sessão. Verifique o nome de utilizador e a palavra-passe. Certifique-se de que selecionou o tipo de conta correto (Dreamehome vs MOVAhome).",
-      "no_devices": "Nenhum corta-relva compatível encontrado nesta conta. Certifique-se de que o dispositivo foi adicionado à sua aplicação e tente outro país de servidor se necessário.",
+      "no_devices": "Nenhum corta-relva compatível encontrado nesta conta. Certifique-se de que escolheu o tipo de conta correto — MOVAhome para dispositivos MOVA, Dreamehome para Dreame — e de que o dispositivo foi adicionado a essa aplicação. Também pode tentar outro país de servidor.",
       "invalid_account_type": "Tipo de conta inválido selecionado."
     },
     "abort": {

@@ -43,7 +43,7 @@
       "unsupported": "Dit apparaatmodel wordt niet ondersteund door deze integratie.",
       "credentials_incomplete": "Gebruikersnaam, wachtwoord en land zijn verplicht.",
       "login_error": "Aanmelden mislukt. Controleer uw gebruikersnaam en wachtwoord. Zorg ervoor dat u het juiste accounttype hebt geselecteerd (Dreamehome vs MOVAhome).",
-      "no_devices": "Geen ondersteunde grasmaaier gevonden in dit account. Zorg ervoor dat het apparaat is toegevoegd aan uw app en probeer een ander serverland indien nodig.",
+      "no_devices": "Geen ondersteunde grasmaaier gevonden in dit account. Zorg ervoor dat je het juiste accounttype hebt gekozen — MOVAhome voor MOVA-apparaten, Dreamehome voor Dreame — en dat het apparaat is toegevoegd aan die app. Je kunt ook een ander serverland proberen.",
       "invalid_account_type": "Ongeldig accounttype geselecteerd."
     },
     "abort": {

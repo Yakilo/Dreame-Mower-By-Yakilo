@@ -43,7 +43,7 @@
       "unsupported": "Dieses Gerätemodell wird von dieser Integration nicht unterstützt.",
       "credentials_incomplete": "Benutzername, Passwort und Land sind erforderlich.",
       "login_error": "Anmeldung fehlgeschlagen. Überprüfen Sie Benutzername und Passwort. Stellen Sie sicher, dass Sie den richtigen Kontotyp ausgewählt haben (Dreamehome vs. MOVAhome).",
-      "no_devices": "Kein unterstützter Mäher in diesem Konto gefunden. Stellen Sie sicher, dass das Gerät in Ihrer App hinzugefügt ist, und probieren Sie ggf. ein anderes Serverland.",
+      "no_devices": "Kein unterstützter Mäher in diesem Konto gefunden. Stellen Sie sicher, dass Sie den richtigen Kontotyp gewählt haben – MOVAhome für MOVA-Geräte, Dreamehome für Dreame – und dass das Gerät in der entsprechenden App hinzugefügt ist. Sie können auch ein anderes Serverland ausprobieren.",
       "invalid_account_type": "Ungültiger Kontotyp ausgewählt."
     },
     "abort": {
