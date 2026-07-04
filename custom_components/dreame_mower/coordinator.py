@@ -498,6 +498,9 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch CMS consumable counters from the device and cache them."""
         result = await self.device.get_consumable_status()
         self._consumable_values = result.get("values")
+        # Push the refreshed counters to the health sensors immediately (e.g. so a
+        # reset is reflected without waiting for the next coordinator update).
+        self.async_update_listeners()
 
     async def async_fetch_firmware_status(self) -> None:
         """Fetch firmware update availability from the device."""

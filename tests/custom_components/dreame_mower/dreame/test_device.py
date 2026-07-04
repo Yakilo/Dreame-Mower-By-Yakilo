@@ -760,6 +760,34 @@ def test_extract_consumable_values_accepts_direct_data_shape(device):
     assert result == [1, 2, 3]
 
 
+def test_extract_consumable_values_preserves_sentinel_slots(device):
+    """CMS parsing must keep every slot the device reports, including -1 sentinels."""
+    result = device._extract_consumable_values({"d": {"value": [120, 2809, 2809, -1]}})
+
+    assert result == [120, 2809, 2809, -1]
+
+
+@pytest.mark.asyncio
+async def test_reset_consumable_counter_round_trips_full_array_with_sentinel(device):
+    """Resetting must write back the whole array verbatim, preserving -1 sentinels."""
+    device._cloud_device.set_connected_state(True)
+    await device.connect()
+
+    responses = iter(
+        [
+            {"code": 0, "out": [{"r": 0, "d": {"value": [120, 2809, 2809, -1]}}]},
+            {"code": 0, "out": [{"r": 0, "d": {"value": [0, 2809, 2809, -1]}}]},
+        ]
+    )
+    device._cloud_device.action_result = lambda *_args, **_kwargs: next(responses)
+
+    await device.reset_consumable_counter("blade")
+
+    assert device._cloud_device.action_calls[1][2] == [
+        {"m": "s", "t": "CMS", "d": {"value": [0, 2809, 2809, -1]}}
+    ]
+
+
 @pytest.mark.asyncio
 async def test_reset_consumable_counter_zeroes_selected_slot(device):
     """Resetting one consumable should preserve the others and send the CMS setter."""

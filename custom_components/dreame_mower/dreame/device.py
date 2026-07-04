@@ -1218,11 +1218,12 @@ class DreameMowerDevice:
     def _build_set_consumable_payload(self, values: Sequence[int]) -> dict[str, Any]:
         """Build the setter payload for CMS consumable counters."""
         normalized_values = [int(value) for value in values]
-        if len(normalized_values) != 3:
-            raise ValueError(f"CMS values must contain exactly 3 counters; got {normalized_values}")
-
-        if any(value < 0 for value in normalized_values):
-            raise ValueError(f"CMS values cannot be negative; got {normalized_values}")
+        # The device expects the full counter array written back verbatim. It
+        # reports at least the three known counters (blade/brush/robot) and may
+        # include extra slots carrying a -1 sentinel ("not applicable"); those
+        # must be preserved as-is or the device rejects/ignores the write.
+        if len(normalized_values) < 3:
+            raise ValueError(f"CMS values must contain at least 3 counters; got {normalized_values}")
 
         return {
             "m": "s",
@@ -1273,8 +1274,11 @@ class DreameMowerDevice:
         if not isinstance(values, list) or len(values) < 3:
             return None
 
+        # Preserve the full counter array as reported by the device. Some models
+        # report more than the three known counters (blade/brush/robot), and a
+        # counter write must round-trip the entire array or the device ignores it.
         normalized_values: list[int] = []
-        for value in values[:3]:
+        for value in values:
             try:
                 normalized_values.append(int(value))
             except (TypeError, ValueError):
@@ -1377,6 +1381,15 @@ class DreameMowerDevice:
         next_values = list(current_values)
         next_values[CONSUMABLE_COUNTER_INDEX[normalized_item]] = 0
         updated_status = await self.set_consumable_status(next_values)
+
+        _LOGGER.info(
+            "Reset consumable '%s': previous=%s requested=%s updated=%s set_response=%r",
+            normalized_item,
+            current_values,
+            next_values,
+            updated_status["values"],
+            updated_status["raw_result"],
+        )
 
         return {
             "item": normalized_item,
