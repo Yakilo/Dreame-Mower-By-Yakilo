@@ -1443,13 +1443,14 @@ class DreameMowerDevice:
                 [payload],
             ),
         )
-        values = self._extract_battery_config_values(result)
-        if values is not None:
-            self._battery_config_values = values
-            self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, {"t": "BAT", "d": {"value": values}})
+        # Force update local cache with the written values, since action responses
+        # for write operations do not typically contain the payload data.
+        normalized_values = list(values)
+        self._battery_config_values = normalized_values
+        self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, {"t": "BAT", "d": {"value": normalized_values}})
         return {
             "raw_result": result,
-            "values": values,
+            "values": normalized_values,
         }
 
     async def set_charging_times(self, start_time: str, end_time: str, enabled: bool = True) -> None:
