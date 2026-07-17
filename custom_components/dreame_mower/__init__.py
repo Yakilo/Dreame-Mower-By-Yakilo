@@ -133,6 +133,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             result = await hass.async_add_executor_job(
                 lambda: coordinator.device._cloud_device.set_property(siid, piid, val)
             )
+        elif method == "get_property":
+            siid = int(payload.get("siid", 2))
+            piid = int(payload.get("piid", 50))
+            result = await hass.async_add_executor_job(
+                lambda: coordinator.device._cloud_device.get_properties([{"did": str(coordinator.device._cloud_device.device_id), "siid": siid, "piid": piid}])
+            )
         else:
             result = f"Unknown method: {method}"
             
