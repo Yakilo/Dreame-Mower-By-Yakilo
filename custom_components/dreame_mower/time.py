@@ -42,6 +42,13 @@ class DreameMowerChargingStartTimeEntity(DreameMowerEntity, TimeEntity):
         self._attr_icon = "mdi:clock-start"
 
     @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        return {
+            "battery_config_values": self.coordinator.device.battery_config_values,
+        }
+
+    @property
     def native_value(self) -> time | None:
         """Return the value reported by the time entity."""
         start_time_str = self.coordinator.device.charging_start_time
@@ -75,6 +82,13 @@ class DreameMowerChargingEndTimeEntity(DreameMowerEntity, TimeEntity):
         super().__init__(coordinator, "charging_end_time")
         self._attr_name = "Charging End Time"
         self._attr_icon = "mdi:clock-end"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        return {
+            "battery_config_values": self.coordinator.device.battery_config_values,
+        }
 
     @property
     def native_value(self) -> time | None:
