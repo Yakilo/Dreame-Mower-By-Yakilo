@@ -112,13 +112,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register test service
     async def async_handle_test_payload(call) -> None:
+        method = call.data.get("method", "action")
         payload_str = call.data.get("payload_str")
         import json
         payload = json.loads(payload_str)
-        result = await hass.async_add_executor_job(
-            lambda: coordinator.device._cloud_device.action(2, 50, [payload])
-        )
-        _LOGGER.warning("TEST_PAYLOAD SENT: %s, RESULT: %s", payload, result)
+        
+        if method == "action":
+            result = await hass.async_add_executor_job(
+                lambda: coordinator.device._cloud_device.action(2, 50, [payload])
+            )
+        elif method == "set_property":
+            # payload is expected to be a dict containing siid, piid, value
+            siid = int(payload.get("siid", 2))
+            piid = int(payload.get("piid", 50))
+            val = payload.get("value")
+            # If val is a dict or list, we can json serialize it if needed, or pass it directly
+            result = await hass.async_add_executor_job(
+                lambda: coordinator.device._cloud_device.set_property(siid, piid, val)
+            )
+        else:
+            result = f"Unknown method: {method}"
+            
+        _LOGGER.warning("TEST_PAYLOAD SENT (%s): %s, RESULT: %s", method, payload, result)
 
     hass.services.async_register(DOMAIN, "test_payload", async_handle_test_payload)
 
