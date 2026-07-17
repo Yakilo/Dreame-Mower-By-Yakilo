@@ -130,9 +130,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             piid = int(payload.get("piid", 50))
             val = payload.get("value")
             # If val is a dict or list, we can json serialize it if needed, or pass it directly
-            result = await hass.async_add_executor_job(
-                lambda: coordinator.device._cloud_device.set_property(siid, piid, val)
-            )
+            try:
+                result = await hass.async_add_executor_job(
+                    lambda: coordinator.device._cloud_device.set_property(siid, piid, val)
+                )
+            except TimeoutError as ex:
+                result = f"TimeoutError (80001): {ex}"
         elif method == "get_property":
             siid = int(payload.get("siid", 2))
             piid = int(payload.get("piid", 50))

@@ -1438,16 +1438,26 @@ class DreameMowerDevice:
 
         The device rejects the action(2:50, BAT-setter) with r=3 but correctly
         accepts and acknowledges writes to property 2:51 via set_properties.
+        The cloud API may return code 80001 (device offline) intermittently even
+        when the device is actually reachable via MQTT — in that case the command
+        is still delivered, so we swallow the TimeoutError and proceed.
         """
         normalized_values = list(values)
-        result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._cloud_device.set_property(
-                SETTINGS_CHANGE_PROPERTY.siid,
-                SETTINGS_CHANGE_PROPERTY.piid,
-                normalized_values,
-            ),
-        )
+        result = None
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._cloud_device.set_property(
+                    SETTINGS_CHANGE_PROPERTY.siid,
+                    SETTINGS_CHANGE_PROPERTY.piid,
+                    normalized_values,
+                ),
+            )
+        except TimeoutError as ex:
+            _LOGGER.warning(
+                "set_battery_config: set_property(2:51) timed out (cloud returned 80001), "
+                "command may still be delivered via MQTT: %s", ex
+            )
         _LOGGER.warning("set_battery_config via set_property(2:51): values=%s, result=%s", normalized_values, result)
         # Update local cache immediately so sensors reflect the new values
         # without waiting for the next MQTT acknowledgement.
