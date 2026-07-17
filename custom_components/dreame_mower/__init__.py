@@ -110,6 +110,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
 
+    # Register test service
+    async def async_handle_test_payload(call) -> None:
+        payload_str = call.data.get("payload_str")
+        import json
+        payload = json.loads(payload_str)
+        result = await hass.async_add_executor_job(
+            lambda: coordinator.device._cloud_device.action(2, 50, [payload])
+        )
+        _LOGGER.warning("TEST_PAYLOAD SENT: %s, RESULT: %s", payload, result)
+
+    hass.services.async_register(DOMAIN, "test_payload", async_handle_test_payload)
+
     # Set up all platforms for this device/entry.
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
