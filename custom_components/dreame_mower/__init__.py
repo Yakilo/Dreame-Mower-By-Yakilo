@@ -118,8 +118,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         payload = json.loads(payload_str)
         
         if method == "action":
+            siid = int(payload.get("siid", 2))
+            aiid = int(payload.get("aiid", 50))
+            params = payload.get("in", [])
             result = await hass.async_add_executor_job(
-                lambda: coordinator.device._cloud_device.action(2, 50, [payload])
+                lambda: coordinator.device._cloud_device.action(siid, aiid, params)
             )
         elif method == "set_property":
             # payload is expected to be a dict containing siid, piid, value
