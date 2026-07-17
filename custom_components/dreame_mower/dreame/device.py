@@ -1434,20 +1434,23 @@ class DreameMowerDevice:
         }
 
     async def set_battery_config(self, values: Sequence[int]) -> dict[str, Any]:
-        """Write BAT battery configuration and return the parsed response."""
-        payload = self._build_set_battery_config_payload(values)
+        """Write BAT battery configuration via set_property(2:51).
+
+        The device rejects the action(2:50, BAT-setter) with r=3 but correctly
+        accepts and acknowledges writes to property 2:51 via set_properties.
+        """
+        normalized_values = list(values)
         result = await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: self._cloud_device.action(
-                SCHEDULING_TASK_PROPERTY.siid,
-                SCHEDULING_TASK_PROPERTY.piid,
-                [payload],
+            lambda: self._cloud_device.set_property(
+                SETTINGS_CHANGE_PROPERTY.siid,
+                SETTINGS_CHANGE_PROPERTY.piid,
+                normalized_values,
             ),
         )
-        _LOGGER.warning("set_battery_config payload: %s, result: %s", payload, result)
-        # Force update local cache with the written values, since action responses
-        # for write operations do not typically contain the payload data.
-        normalized_values = list(values)
+        _LOGGER.warning("set_battery_config via set_property(2:51): values=%s, result=%s", normalized_values, result)
+        # Update local cache immediately so sensors reflect the new values
+        # without waiting for the next MQTT acknowledgement.
         self._battery_config_values = normalized_values
         self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, {"t": "BAT", "d": {"value": normalized_values}})
         return {
@@ -1493,6 +1496,7 @@ class DreameMowerDevice:
                 [self._build_get_consumable_payload()],
             ),
         )
+        _LOGGER.warning("get_consumable_status result: %s", result)
         return {
             "raw_result": result,
             "values": self._extract_consumable_values(result),
