@@ -1425,6 +1425,7 @@ class DreameMowerDevice:
             ),
         )
         values = self._extract_battery_config_values(result)
+        _LOGGER.warning("get_battery_config result: %s, values: %s", result, values)
         if values is not None:
             self._battery_config_values = values
         return {
@@ -1443,6 +1444,7 @@ class DreameMowerDevice:
                 [payload],
             ),
         )
+        _LOGGER.warning("set_battery_config payload: %s, result: %s", payload, result)
         # Force update local cache with the written values, since action responses
         # for write operations do not typically contain the payload data.
         normalized_values = list(values)
