@@ -179,6 +179,9 @@ class DreameMowerDevice:
         self._service1_property_51: bool = False
         self._service1_completion_flag: bool = False
         
+        # Battery config properties
+        self._battery_config_values: list[int] | None = None
+        
         # Property handlers
         self._misc_handler = MiscPropertyHandler()
         self._device_code_handler = DeviceCodeHandler()
@@ -320,6 +323,34 @@ class DreameMowerDevice:
     def service5_property_108(self) -> int | None:
         """Return Service 5 property 108 value."""
         return self._service5_handler.property_108_value
+
+    @property
+    def battery_config_values(self) -> list[int] | None:
+        """Return raw BAT battery configuration."""
+        return self._battery_config_values
+
+    @property
+    def charging_start_time(self) -> str | None:
+        """Return allowed charging start time (HH:MM)."""
+        if not self._battery_config_values or len(self._battery_config_values) < 6:
+            return None
+        start_min = self._battery_config_values[4]
+        return f"{start_min // 60:02d}:{start_min % 60:02d}"
+
+    @property
+    def charging_end_time(self) -> str | None:
+        """Return allowed charging end time (HH:MM)."""
+        if not self._battery_config_values or len(self._battery_config_values) < 6:
+            return None
+        end_min = self._battery_config_values[5]
+        return f"{end_min // 60:02d}:{end_min % 60:02d}"
+
+    @property
+    def custom_charging_enabled(self) -> bool | None:
+        """Return True if allowed charging schedule is enabled."""
+        if not self._battery_config_values or len(self._battery_config_values) < 3:
+            return None
+        return bool(self._battery_config_values[2])
 
     @property
     def device_code(self) -> int | None:
@@ -951,6 +982,12 @@ class DreameMowerDevice:
                 # Handle miscellaneous properties (1:1, 2:51) in unified misc handler
                 if not self._misc_handler.handle_property_update(siid, piid, message["value"], self._notify_property_change):
                     return False  # Parsing failed - treat as unhandled property
+                
+                # Check if this was a settings change for BAT
+                if SETTINGS_CHANGE_PROPERTY.matches(siid, piid):
+                    last_val = self._misc_handler.battery_config
+                    if last_val is not None:
+                        self._battery_config_values = last_val
             else:
                 return False  # Property not handled
             
@@ -1233,6 +1270,23 @@ class DreameMowerDevice:
             },
         }
 
+    def _build_get_battery_config_payload(self) -> dict[str, Any]:
+        """Build the getter payload for BAT battery configuration."""
+        return {
+            "m": "g",
+            "t": "BAT",
+        }
+
+    def _build_set_battery_config_payload(self, values: Sequence[int]) -> dict[str, Any]:
+        """Build the setter payload for BAT battery configuration."""
+        return {
+            "m": "s",
+            "t": "BAT",
+            "d": {
+                "value": list(values),
+            },
+        }
+
     @staticmethod
     def _extract_custom_action_data(result: Any) -> dict[str, Any] | None:
         """Extract the first successful data payload from a custom action result."""
@@ -1277,6 +1331,26 @@ class DreameMowerDevice:
         # Preserve the full counter array as reported by the device. Some models
         # report more than the three known counters (blade/brush/robot), and a
         # counter write must round-trip the entire array or the device ignores it.
+        normalized_values: list[int] = []
+        for value in values:
+            try:
+                normalized_values.append(int(value))
+            except (TypeError, ValueError):
+                return None
+
+        return normalized_values
+
+    @classmethod
+    def _extract_battery_config_values(cls, result: Any) -> list[int] | None:
+        """Extract the BAT battery config list from a custom action result."""
+        data = cls._extract_custom_action_data(result)
+        if not isinstance(data, dict):
+            return None
+
+        values = data.get("value")
+        if not isinstance(values, list) or len(values) < 6:
+            return None
+
         normalized_values: list[int] = []
         for value in values:
             try:
@@ -1338,6 +1412,72 @@ class DreameMowerDevice:
                     return self._map_id_from_index(normalized_index, fallback_position=position)
 
         return None
+
+    async def get_battery_config(self) -> dict[str, Any]:
+        """Fetch the raw BAT battery configuration and parsed values."""
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._cloud_device.action(
+                SCHEDULING_TASK_PROPERTY.siid,
+                SCHEDULING_TASK_PROPERTY.piid,
+                [self._build_get_battery_config_payload()],
+            ),
+        )
+        values = self._extract_battery_config_values(result)
+        if values is not None:
+            self._battery_config_values = values
+        return {
+            "raw_result": result,
+            "values": values,
+        }
+
+    async def set_battery_config(self, values: Sequence[int]) -> dict[str, Any]:
+        """Write BAT battery configuration and return the parsed response."""
+        payload = self._build_set_battery_config_payload(values)
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._cloud_device.action(
+                SCHEDULING_TASK_PROPERTY.siid,
+                SCHEDULING_TASK_PROPERTY.piid,
+                [payload],
+            ),
+        )
+        values = self._extract_battery_config_values(result)
+        if values is not None:
+            self._battery_config_values = values
+            self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, {"t": "BAT", "d": {"value": values}})
+        return {
+            "raw_result": result,
+            "values": values,
+        }
+
+    async def set_charging_times(self, start_time: str, end_time: str, enabled: bool = True) -> None:
+        """Update allowed charging times (HH:MM) on the mower."""
+        try:
+            # Parse times into minutes
+            start_parts = [int(p) for p in start_time.split(":")]
+            end_parts = [int(p) for p in end_time.split(":")]
+            start_min = start_parts[0] * 60 + start_parts[1]
+            end_min = end_parts[0] * 60 + end_parts[1]
+        except (ValueError, IndexError, AttributeError) as ex:
+            raise ValueError(f"Invalid time format (use HH:MM): {ex}")
+
+        # Fetch current config or initialize default
+        current_status = await self.get_battery_config()
+        current_values = current_status["values"]
+        if current_values is None:
+            # Default values: [return%, max%, charge_en, ?, start_min, end_min]
+            current_values = [15, 100, 1 if enabled else 0, 0, start_min, end_min]
+        else:
+            current_values = list(current_values)
+            # Ensure we have at least 6 fields
+            while len(current_values) < 6:
+                current_values.append(0)
+            current_values[2] = 1 if enabled else 0
+            current_values[4] = start_min
+            current_values[5] = end_min
+
+        await self.set_battery_config(current_values)
 
     async def get_consumable_status(self) -> dict[str, Any]:
         """Fetch the raw CMS consumable counters and parsed values."""

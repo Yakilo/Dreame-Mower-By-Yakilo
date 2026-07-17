@@ -39,6 +39,7 @@ from .dreame.const import (
     POWER_STATE_PROPERTY,
     DeviceStatus,
     STATUS_PROPERTY,
+    SETTINGS_CHANGE_PROPERTY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._selected_zone_id: int | None = None
         self._selected_spot_area_id: int | None = None
         self._consumable_values: list[int] | None = None
+        self._battery_config_values: list[int] | None = None
 
         # Initialize coordinator with no automatic polling (device will push updates)
         super().__init__(
@@ -407,6 +409,8 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Handle device property updates and notify Home Assistant."""
         if property_name == STATUS_PROPERTY.name and int(value) == DeviceStatus.CHARGING:
             self.hass.create_task(self._async_refresh_consumables_on_charging())
+        elif property_name == SETTINGS_CHANGE_PROPERTY.name and isinstance(value, dict) and value.get("t") == "BAT":
+            self._battery_config_values = value.get("d", {}).get("value")
         self._normalize_selection_state()
 
         # Handle device code error notifications
@@ -500,6 +504,17 @@ class DreameMowerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._consumable_values = result.get("values")
         # Push the refreshed counters to the health sensors immediately (e.g. so a
         # reset is reflected without waiting for the next coordinator update).
+        self.async_update_listeners()
+
+    @property
+    def battery_config_values(self) -> list[int] | None:
+        """Return cached BAT battery configuration."""
+        return self._battery_config_values
+
+    async def async_fetch_battery_config_data(self) -> None:
+        """Fetch BAT battery config from the device and cache it."""
+        result = await self.device.get_battery_config()
+        self._battery_config_values = result.get("values")
         self.async_update_listeners()
 
     async def async_fetch_firmware_status(self) -> None:

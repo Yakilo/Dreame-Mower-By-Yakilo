@@ -191,13 +191,27 @@ class MiscPropertyHandler:
         """Return True while a mowing session is in progress."""
         return self._property_1_1_handler.mowing_session_active
 
+    @property
+    def battery_config(self) -> list[int] | None:
+        """Return battery configuration from last settings change acknowledgment."""
+        val = self._settings_change_handler.last_value
+        if val and isinstance(val, dict) and val.get("t") == "BAT":
+            d = val.get("d")
+            if isinstance(d, dict) and "value" in d:
+                return d["value"]
+        return None
+
     def handle_property_update(self, siid: int, piid: int, value: Any, notify_callback: Callable[[str, Any], None]) -> bool:
         """Handle miscellaneous property updates."""
         try:
             if PROPERTY_1_1.matches(siid, piid):
                 return self._property_1_1_handler.parse_value(value, notify_callback)
             elif SETTINGS_CHANGE_PROPERTY.matches(siid, piid):
-                return self._settings_change_handler.parse_value(value)
+                res = self._settings_change_handler.parse_value(value)
+                if res and self.battery_config is not None:
+                    # Notify coordinate changes/etc or notify settings_change
+                    notify_callback(SETTINGS_CHANGE_PROPERTY.name, value)
+                return res
             else:
                 # Property not handled by this handler
                 return False

@@ -35,6 +35,7 @@ _MOWER_PLATFORMS = (
     Platform.CAMERA,
     Platform.SELECT,
     Platform.BUTTON,
+    Platform.TIME,
 )
 _SWBOT_PLATFORMS = (
     Platform.SENSOR,
@@ -78,6 +79,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.async_fetch_consumable_data()
         except Exception as ex:
             _LOGGER.warning("Initial consumable data fetch failed: %s", ex)
+
+        try:
+            await coordinator.async_fetch_battery_config_data()
+        except Exception as ex:
+            _LOGGER.warning("Initial battery config data fetch failed: %s", ex)
 
     # Store coordinator in hass data
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
