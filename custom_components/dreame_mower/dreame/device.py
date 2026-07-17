@@ -1266,9 +1266,9 @@ class DreameMowerDevice:
         return {
             "m": "s",
             "t": "CMS",
-            "d": {
+            "d": json.dumps({
                 "value": normalized_values,
-            },
+            }, separators=(",", ":")),
         }
 
     def _build_get_battery_config_payload(self) -> dict[str, Any]:
@@ -1283,9 +1283,9 @@ class DreameMowerDevice:
         return {
             "m": "s",
             "t": "BAT",
-            "d": {
+            "d": json.dumps({
                 "value": list(values),
-            },
+            }, separators=(",", ":")),
         }
 
     @staticmethod
