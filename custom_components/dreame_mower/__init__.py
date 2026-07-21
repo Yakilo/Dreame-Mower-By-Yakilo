@@ -142,6 +142,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             result = await hass.async_add_executor_job(
                 lambda: coordinator.device._cloud_device.get_properties([{"did": str(coordinator.device._cloud_device.device_id), "siid": siid, "piid": piid}])
             )
+        elif method == "set_batch":
+            # Test set_batch_device_datas - alternative API path that may bypass 80001 timeout
+            props = payload.get("props", payload)  # Accept props dict directly or full payload
+            try:
+                result = await hass.async_add_executor_job(
+                    lambda: coordinator.device._cloud_device.set_batch_device_datas(props)
+                )
+            except TimeoutError as ex:
+                result = f"TimeoutError (80001): {ex}"
+            except Exception as ex:
+                result = f"Error: {ex}"
         else:
             result = f"Unknown method: {method}"
             
