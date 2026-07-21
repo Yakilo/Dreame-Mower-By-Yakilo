@@ -1434,31 +1434,42 @@ class DreameMowerDevice:
         }
 
     async def set_battery_config(self, values: Sequence[int]) -> dict[str, Any]:
-        """Write BAT battery configuration via set_property(2:51)."""
+        """Write BAT battery configuration via action(2:50) or set_property(2:51)."""
         normalized_values = list(values)
-        bat_payload = {"t": "BAT", "d": {"value": normalized_values}}
+        payload = self._build_set_battery_config_payload(normalized_values)
+        bat_property_payload = {"t": "BAT", "d": {"value": normalized_values}}
         result = None
 
+        # Primary: action(2:50) task runner (SCHEDULING_TASK_PROPERTY)
         try:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._cloud_device.set_property(
-                    SETTINGS_CHANGE_PROPERTY.siid,
-                    SETTINGS_CHANGE_PROPERTY.piid,
-                    bat_payload,
+                lambda: self._cloud_device.action(
+                    SCHEDULING_TASK_PROPERTY.siid,
+                    SCHEDULING_TASK_PROPERTY.piid,
+                    [payload],
                 ),
             )
-            _LOGGER.info("set_battery_config sent via set_property(2:51): payload=%s, result=%s", bat_payload, result)
-        except TimeoutError as ex:
-            _LOGGER.warning(
-                "set_battery_config: Mower is in standby/sleep mode (cloud returned 80001). "
-                "The configuration payload will sync when the mower wakes up: %s", ex
-            )
+            _LOGGER.info("set_battery_config sent via action(2:50): payload=%s, result=%s", payload, result)
         except Exception as ex:
-            _LOGGER.warning("set_battery_config set_property(2:51) failed: %s", ex)
+            _LOGGER.warning("set_battery_config action(2:50) failed (%s), trying set_property(2:51)", ex)
+            try:
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self._cloud_device.set_property(
+                        SETTINGS_CHANGE_PROPERTY.siid,
+                        SETTINGS_CHANGE_PROPERTY.piid,
+                        bat_property_payload,
+                    ),
+                )
+                _LOGGER.info("set_battery_config sent via set_property(2:51): payload=%s, result=%s", bat_property_payload, result)
+            except TimeoutError as ex2:
+                _LOGGER.warning("set_battery_config set_property(2:51) timed out (mower standby 80001): %s", ex2)
+            except Exception as ex2:
+                _LOGGER.warning("set_battery_config set_property(2:51) failed: %s", ex2)
 
         self._battery_config_values = normalized_values
-        self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, bat_payload)
+        self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, bat_property_payload)
         return {
             "raw_result": result,
             "values": normalized_values,
