@@ -1434,13 +1434,11 @@ class DreameMowerDevice:
         }
 
     async def set_battery_config(self, values: Sequence[int]) -> dict[str, Any]:
-        """Write BAT battery configuration via set_property(2:51) or action(2:50)."""
+        """Write BAT battery configuration via set_property(2:51)."""
         normalized_values = list(values)
         bat_payload = {"t": "BAT", "d": {"value": normalized_values}}
-        bat_json_str = json.dumps(bat_payload, separators=(",", ":"))
         result = None
 
-        # Attempt 1: set_property(2:51) with dict payload
         try:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -1450,34 +1448,14 @@ class DreameMowerDevice:
                     bat_payload,
                 ),
             )
-            _LOGGER.warning("set_battery_config via set_property(2:51) (dict): payload=%s, result=%s", bat_payload, result)
+            _LOGGER.info("set_battery_config sent via set_property(2:51): payload=%s, result=%s", bat_payload, result)
+        except TimeoutError as ex:
+            _LOGGER.warning(
+                "set_battery_config: Mower is in standby/sleep mode (cloud returned 80001). "
+                "The configuration payload will sync when the mower wakes up: %s", ex
+            )
         except Exception as ex:
-            _LOGGER.warning("set_battery_config via set_property(2:51) (dict) failed (%s), trying json string", ex)
-            try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._cloud_device.set_property(
-                        SETTINGS_CHANGE_PROPERTY.siid,
-                        SETTINGS_CHANGE_PROPERTY.piid,
-                        bat_json_str,
-                    ),
-                )
-                _LOGGER.warning("set_battery_config via set_property(2:51) (string): payload=%s, result=%s", bat_json_str, result)
-            except Exception as ex2:
-                _LOGGER.warning("set_battery_config via set_property(2:51) (string) failed (%s), trying action(2:50)", ex2)
-                try:
-                    payload = self._build_set_battery_config_payload(normalized_values)
-                    result = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: self._cloud_device.action(
-                            SCHEDULING_TASK_PROPERTY.siid,
-                            SCHEDULING_TASK_PROPERTY.piid,
-                            [payload],
-                        ),
-                    )
-                    _LOGGER.warning("set_battery_config via action(2:50): payload=%s, result=%s", payload, result)
-                except Exception as ex3:
-                    _LOGGER.warning("set_battery_config all attempts failed: %s", ex3)
+            _LOGGER.warning("set_battery_config set_property(2:51) failed: %s", ex)
 
         self._battery_config_values = normalized_values
         self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, bat_payload)
