@@ -182,6 +182,9 @@ class DreameMowerDevice:
         
         # Battery config properties
         self._battery_config_values: list[int] | None = None
+        # Pending battery config to send when the mower next docks (device rejects
+        # set_property(2:51) while mowing; we buffer and flush on charging start)
+        self._pending_battery_config: list[int] | None = None
         
         # Property handlers
         self._misc_handler = MiscPropertyHandler()
@@ -847,6 +850,16 @@ class DreameMowerDevice:
                 self._charging_status = status_text
                 if old != status_text:
                     self._notify_property_change(CHARGING_STATUS_PROPERTY.name, status_text)
+                    # Flush pending battery config when mower starts charging
+                    if status_text in ("charging", "charging_completed") and self._pending_battery_config is not None:
+                        _LOGGER.info(
+                            "Mower docked (charging_status=%s) — flushing pending battery config: %s",
+                            status_text, self._pending_battery_config,
+                        )
+                        import asyncio as _asyncio
+                        loop = _asyncio.get_event_loop()
+                        if loop.is_running():
+                            loop.create_task(self._flush_pending_battery_config())
             elif (TASK_STATUS_PROPERTY.matches(siid, piid) or
                   SERVICE5_PROPERTY_100.matches(siid, piid) or
                   SERVICE5_PROPERTY_101.matches(siid, piid) or
@@ -1434,46 +1447,79 @@ class DreameMowerDevice:
         }
 
     async def set_battery_config(self, values: Sequence[int]) -> dict[str, Any]:
-        """Write BAT battery configuration via action(2:50) or set_property(2:51)."""
+        """Write BAT battery configuration via set_property(2:51).
+
+        If the mower is mowing (cloud returns 80001), the config is buffered in
+        _pending_battery_config and automatically sent when the mower next docks.
+        """
         normalized_values = list(values)
-        payload = self._build_set_battery_config_payload(normalized_values)
         bat_property_payload = {"t": "BAT", "d": {"value": normalized_values}}
         result = None
+        sent = False
 
-        # Primary: action(2:50) task runner (SCHEDULING_TASK_PROPERTY)
         try:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._cloud_device.action(
-                    SCHEDULING_TASK_PROPERTY.siid,
-                    SCHEDULING_TASK_PROPERTY.piid,
-                    [payload],
+                lambda: self._cloud_device.set_property(
+                    SETTINGS_CHANGE_PROPERTY.siid,
+                    SETTINGS_CHANGE_PROPERTY.piid,
+                    bat_property_payload,
                 ),
             )
-            _LOGGER.info("set_battery_config sent via action(2:50): payload=%s, result=%s", payload, result)
+            _LOGGER.info(
+                "set_battery_config sent via set_property(2:51): payload=%s, result=%s",
+                bat_property_payload, result,
+            )
+            sent = True
+            self._pending_battery_config = None  # Clear any pending config on success
+        except TimeoutError as ex:
+            # Device rejects property writes while mowing (80001). Buffer and retry on dock.
+            self._pending_battery_config = normalized_values
+            _LOGGER.warning(
+                "set_battery_config: device busy/mowing (80001) \u2014 buffered config %s, "
+                "will auto-send when mower docks: %s",
+                normalized_values, ex,
+            )
         except Exception as ex:
-            _LOGGER.warning("set_battery_config action(2:50) failed (%s), trying set_property(2:51)", ex)
-            try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self._cloud_device.set_property(
-                        SETTINGS_CHANGE_PROPERTY.siid,
-                        SETTINGS_CHANGE_PROPERTY.piid,
-                        bat_property_payload,
-                    ),
-                )
-                _LOGGER.info("set_battery_config sent via set_property(2:51): payload=%s, result=%s", bat_property_payload, result)
-            except TimeoutError as ex2:
-                _LOGGER.warning("set_battery_config set_property(2:51) timed out (mower standby 80001): %s", ex2)
-            except Exception as ex2:
-                _LOGGER.warning("set_battery_config set_property(2:51) failed: %s", ex2)
+            _LOGGER.warning("set_battery_config set_property(2:51) failed: %s", ex)
 
+        # Always update local state so HA reflects the intended value immediately
         self._battery_config_values = normalized_values
         self._notify_property_change(SETTINGS_CHANGE_PROPERTY.name, bat_property_payload)
         return {
             "raw_result": result,
             "values": normalized_values,
+            "sent": sent,
+            "pending": not sent,
         }
+
+    async def _flush_pending_battery_config(self) -> None:
+        """Send buffered battery config to the mower now that it has docked."""
+        if self._pending_battery_config is None:
+            return
+
+        values = self._pending_battery_config
+        bat_property_payload = {"t": "BAT", "d": {"value": values}}
+        _LOGGER.info("_flush_pending_battery_config: sending %s", values)
+
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._cloud_device.set_property(
+                    SETTINGS_CHANGE_PROPERTY.siid,
+                    SETTINGS_CHANGE_PROPERTY.piid,
+                    bat_property_payload,
+                ),
+            )
+            _LOGGER.info(
+                "_flush_pending_battery_config: sent successfully, result=%s", result
+            )
+            self._pending_battery_config = None  # Consumed
+        except Exception as ex:
+            _LOGGER.warning(
+                "_flush_pending_battery_config: failed to send pending config %s: %s",
+                values, ex,
+            )
 
     async def set_charging_times(self, start_time: str, end_time: str, enabled: bool = True) -> None:
         """Update allowed charging times (HH:MM) on the mower."""
